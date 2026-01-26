@@ -226,6 +226,10 @@
                     <button class="action-btn danger" id="btn-clear">🗑️ Clear</button>
                     <button class="action-btn success" id="btn-export">📥 CSV</button>
                     <button class="action-btn" id="btn-copy">📋 Copy</button>
+                    <label class="action-btn" id="btn-load" style="cursor:pointer;">
+                        📂 Load
+                        <input type="file" id="csv-upload" accept=".csv" style="display:none;">
+                    </label>
                 </div>
             </div>
             
@@ -628,6 +632,7 @@
             document.getElementById('btn-clear').addEventListener('click', clearAllPlanned);
             document.getElementById('btn-export').addEventListener('click', exportCSV);
             document.getElementById('btn-copy').addEventListener('click', copyToClipboard);
+            document.getElementById('csv-upload').addEventListener('change', loadCSV);
             
             // Analysis tools
             document.getElementById('btn-measure').addEventListener('click', toggleMeasureMode);
@@ -869,6 +874,115 @@
             var text = 'SBMM Round 2 Planned Locations\n';
             plannedPoints.forEach(p => text += p.id + ' [' + (p.depth || 'Shallow') + ']: ' + p.lat.toFixed(6) + ', ' + p.lon.toFixed(6) + (p.note ? ' - ' + p.note : '') + '\n');
             navigator.clipboard.writeText(text).then(() => alert('Copied!'));
+        }
+        
+        function loadCSV(event) {
+            var file = event.target.files[0];
+            if (!file) return;
+            
+            var reader = new FileReader();
+            reader.onload = function(e) {
+                var text = e.target.result;
+                var lines = text.split('\n');
+                var loadedCount = 0;
+                var skippedCount = 0;
+                
+                // Clear existing planned points first (optional - ask user)
+                if (plannedPoints.length > 0) {
+                    if (!confirm('Clear existing planned points before loading?\n\nClick OK to replace, Cancel to add to existing.')) {
+                        // User wants to keep existing points - that's fine, we'll add to them
+                    } else {
+                        // Clear existing
+                        layers.planned.clearLayers();
+                        plannedPoints = [];
+                    }
+                }
+                
+                // Parse CSV (skip header row)
+                for (var i = 1; i < lines.length; i++) {
+                    var line = lines[i].trim();
+                    if (!line) continue;
+                    
+                    // Parse CSV line (handle quoted notes with commas)
+                    var parts = parseCSVLine(line);
+                    if (parts.length < 5) continue;
+                    
+                    var pointId = parts[0];
+                    var type = parts[1].toLowerCase();
+                    var depth = parts[2] || 'Shallow';
+                    var lat = parseFloat(parts[3]);
+                    var lon = parseFloat(parts[4]);
+                    var note = parts[5] || '';
+                    
+                    // Validate
+                    if (isNaN(lat) || isNaN(lon)) {
+                        skippedCount++;
+                        continue;
+                    }
+                    
+                    // Check for duplicate ID
+                    if (plannedPoints.find(p => p.id === pointId)) {
+                        skippedCount++;
+                        continue;
+                    }
+                    
+                    // Determine color based on type
+                    var color = type === 'proposed' ? '#00bfff' : '#ff6b00';
+                    
+                    var point = {
+                        id: pointId,
+                        type: type,
+                        lat: lat,
+                        lon: lon,
+                        depth: depth,
+                        note: note,
+                        color: color
+                    };
+                    
+                    plannedPoints.push(point);
+                    addPlannedMarker(point);
+                    loadedCount++;
+                }
+                
+                updatePlannedPointsList();
+                
+                // Refresh gap grid if visible
+                if (gapsVisible) createGapGrid();
+                
+                // Zoom to loaded points
+                if (loadedCount > 0 && layers.planned.getLayers().length > 0) {
+                    map.fitBounds(layers.planned.getBounds(), {padding: [50, 50]});
+                }
+                
+                // Show result
+                var msg = 'Loaded ' + loadedCount + ' points';
+                if (skippedCount > 0) msg += ' (' + skippedCount + ' skipped)';
+                alert(msg);
+                
+                // Reset file input so same file can be loaded again
+                event.target.value = '';
+            };
+            reader.readAsText(file);
+        }
+        
+        function parseCSVLine(line) {
+            var result = [];
+            var current = '';
+            var inQuotes = false;
+            
+            for (var i = 0; i < line.length; i++) {
+                var char = line[i];
+                if (char === '"') {
+                    inQuotes = !inQuotes;
+                } else if (char === ',' && !inQuotes) {
+                    result.push(current.trim());
+                    current = '';
+                } else {
+                    current += char;
+                }
+            }
+            result.push(current.trim());
+            return result;
         }
         
         // ===== MEASUREMENT TOOL =====
