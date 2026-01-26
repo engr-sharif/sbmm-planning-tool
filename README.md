@@ -67,9 +67,16 @@ Switch map display between contaminants of concern:
 - **Click to Edit:** Modify notes and depth anytime
 - **Smart Numbering:** Fills gaps when points are deleted (P-1, P-2, delete P-2, next point = P-2)
 
-### 📥 Export Options
+### 📥 Export & Import
 - **CSV Export:** Downloads spreadsheet with Point_ID, Type, Depth, Latitude, Longitude, Note
+- **CSV Load:** Import previously exported CSV to restore planned points
 - **Copy to Clipboard:** Quick text copy for pasting into emails or documents
+
+### Saving & Loading Your Work
+The tool doesn't save points between sessions, but you can:
+1. **Export to CSV** when done planning
+2. **Load CSV** later to restore your points
+3. Share the CSV file with team members who can load it into their tool
 
 ### 🗺️ Map Controls
 - Google Satellite imagery base layer
@@ -124,6 +131,13 @@ Switch map display between contaminants of concern:
 2. Click **CSV** to download a spreadsheet file
 3. Or click **Copy** to copy text to clipboard
 
+### Loading Saved Points
+1. Click **Load** button in the planning actions
+2. Select a previously exported CSV file
+3. Choose to replace existing points or add to them
+4. Points appear on map ready for further editing
+5. Share CSV files with team members to collaborate
+
 ---
 
 ## Technical Information
@@ -142,7 +156,7 @@ The tool runs entirely in your web browser - no installation or server connectio
 
 | Version | Date | Description |
 |---------|------|-------------|
-| REV3 | January 2026 | Hot zone analysis, adjustable grid size, depth selection, point editing, planned points toggle, watermark |
+| REV3 | January 2026 | CSV import/load, hot zone analysis, adjustable grid size, depth selection, point editing, planned points toggle, watermark |
 | REV2 | January 2026 | Data gap analysis, measurement tool, color by analyte selector |
 | REV1 | January 2026 | Initial release with mapping and basic planning features |
 
