@@ -1097,20 +1097,22 @@
             if (gapLayer) map.removeLayer(gapLayer);
             gapLayer = L.layerGroup().addTo(map);
             
-            // Get all sample locations (both 2025, EA, AND optionally planned points)
-            var allSamples = [];
-            samples2025.filter(s => s.sampled).forEach(s => allSamples.push({lat: s.lat, lon: s.lon}));
-            eaSamples.forEach(e => allSamples.push({lat: e.lat, lon: e.lon}));
-            // Include planned points only if toggle is on
+            // Get base samples (2025 + EA) for grid bounds - these never change
+            var baseSamples = [];
+            samples2025.filter(s => s.sampled).forEach(s => baseSamples.push({lat: s.lat, lon: s.lon}));
+            eaSamples.forEach(e => baseSamples.push({lat: e.lat, lon: e.lon}));
+            
+            // Build sample list for density calculation (optionally include planned)
+            var densitySamples = baseSamples.slice();  // Copy base samples
             if (includePlannedInGaps) {
-                plannedPoints.forEach(p => allSamples.push({lat: p.lat, lon: p.lon}));
+                plannedPoints.forEach(p => densitySamples.push({lat: p.lat, lon: p.lon}));
             }
             
-            // Define grid bounds (slightly larger than data extent)
-            var minLat = Math.min(...allSamples.map(s => s.lat)) - 0.0005;
-            var maxLat = Math.max(...allSamples.map(s => s.lat)) + 0.0005;
-            var minLon = Math.min(...allSamples.map(s => s.lon)) - 0.0005;
-            var maxLon = Math.max(...allSamples.map(s => s.lon)) + 0.0005;
+            // Define grid bounds from BASE samples only (so grid doesn't shift)
+            var minLat = Math.min(...baseSamples.map(s => s.lat)) - 0.0005;
+            var maxLat = Math.max(...baseSamples.map(s => s.lat)) + 0.0005;
+            var minLon = Math.min(...baseSamples.map(s => s.lon)) - 0.0005;
+            var maxLon = Math.max(...baseSamples.map(s => s.lon)) + 0.0005;
             
             // Calculate grid size based on gridSizeFt variable
             // At latitude 39°N: 1° lat ≈ 111km, 1° lon ≈ 86km
@@ -1131,7 +1133,7 @@
                     
                     // Count samples within search radius of cell center
                     var count = 0;
-                    allSamples.forEach(function(s) {
+                    densitySamples.forEach(function(s) {
                         var sampleLatLng = L.latLng(s.lat, s.lon);
                         var dist = centerLatLng.distanceTo(sampleLatLng);
                         if (dist <= searchRadius) {
