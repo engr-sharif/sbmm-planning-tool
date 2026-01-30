@@ -207,7 +207,7 @@
             
             <div class="cleanup-levels">
                 <div class="title">ROD ON-MINE CLEANUP LEVELS (mg/kg) - 2023 ROD Table 2-3</div>
-                Hg: 204 | As: 22 | Sb: 51 | Tl: 1.3
+                Hg: 204 | As: 6.1 | Sb: 51 | Tl: 1.3
             </div>
             
             <div class="planning-tool">
@@ -396,7 +396,7 @@
         // low = PMB (Pre-Mining Baseline), high = ROD Cleanup Level
         var thresholds = {
             Mercury: { low: 35, high: 204 },    // PMB=35, ROD=204
-            Arsenic: { low: 22, high: 22 },     // PMB=ROD=22 (no yellow zone)
+            Arsenic: { low: 6.1, high: 6.1 },    // PMB=6.1 (no yellow zone)
             Antimony: { low: 7.1, high: 51 },   // PMB=7.1, ROD=51
             Thallium: { low: 1.3, high: 1.3 }   // ROD=1.3 (no yellow zone)
         };
@@ -453,7 +453,7 @@
                     keyMetals.forEach(function(m) {
                         var val = s.metals[m];
                         if (val !== null && val !== undefined) {
-                            var exceed = (m === 'Mercury' && val > 204) || (m === 'Arsenic' && val > 22) || 
+                            var exceed = (m === 'Mercury' && val > 204) || (m === 'Arsenic' && val > 6.1) || 
                                          (m === 'Antimony' && val > 51) || (m === 'Thallium' && val > 1.3);
                             var style = exceed ? 'background: #ffcccc; font-weight: bold;' : 'background: #f0f0f0;';
                             metalsHtml += '<div style="' + style + ' padding: 2px 3px; border-radius: 2px; white-space: nowrap;"><b>' + m.substring(0,4) + ':</b> ' + fmt(val) + '</div>';
@@ -466,7 +466,7 @@
                     '<div style="font-family: Arial; min-width: 280px; max-width: 320px;">' +
                     '<h4 style="margin: 0 0 6px 0; color: #1F4E79;">2025: ' + s.label + '</h4>' +
                     '<b>Mercury:</b> ' + hgText + (hg && hg > 204 ? ' <span style="color:red;">⚠ EXCEEDS ROD</span>' : '') + '<br>' +
-                    '<b>Arsenic:</b> ' + asText + (arsenic && arsenic > 22 ? ' <span style="color:red;">⚠ EXCEEDS ROD</span>' : '') + '<br>' +
+                    '<b>Arsenic:</b> ' + asText + (arsenic && arsenic > 6.1 ? ' <span style="color:red;">⚠ EXCEEDS ROD</span>' : '') + '<br>' +
                     '<b>Priority:</b> ' + s.priority + '<br>' +
                     '<small>' + s.lat.toFixed(6) + ', ' + s.lon.toFixed(6) + '</small>' +
                     metalsHtml +
@@ -501,7 +501,7 @@
                     '<div style="font-family: Arial; min-width: 200px;">' +
                     '<h4 style="margin: 0 0 6px 0; color: #8B4513;">EA: ' + e.id + '</h4>' +
                     '<b>Mercury:</b> ' + fmt(e.mercury) + ' mg/kg' + (e.mercury > 204 ? ' <span style="color:red;">⚠ ROD</span>' : '') + '<br>' +
-                    '<b>Arsenic:</b> ' + fmt(e.arsenic) + ' mg/kg' + (e.arsenic > 22 ? ' <span style="color:red;">⚠ ROD</span>' : '') + '<br>' +
+                    '<b>Arsenic:</b> ' + fmt(e.arsenic) + ' mg/kg' + (e.arsenic > 6.1 ? ' <span style="color:red;">⚠ ROD</span>' : '') + '<br>' +
                     '<b>Antimony:</b> ' + fmt(e.antimony) + ' mg/kg' + (e.antimony > 51 ? ' <span style="color:red;">⚠ ROD</span>' : '') + '<br>' +
                     '<b>Thallium:</b> ' + fmt(e.thallium) + ' mg/kg' + (e.thallium > 1.3 ? ' <span style="color:red;">⚠ ROD</span>' : '') + '<br>' +
                     '<b>Priority:</b> ' + e.priority + '<br>' +
@@ -624,7 +624,7 @@
                 var asText = s.metals && s.metals.Arsenic !== null ? fmt(s.metals.Arsenic) : '—';
                 var sbText = s.metals && s.metals.Antimony !== null ? fmt(s.metals.Antimony) : '—';
                 var hgFlag = s.metals && s.metals.Mercury && s.metals.Mercury > 204 ? '<span class="flag">⚠</span>' : '';
-                var asFlag = s.metals && s.metals.Arsenic && s.metals.Arsenic > 22 ? '<span class="flag">⚠</span>' : '';
+                var asFlag = s.metals && s.metals.Arsenic && s.metals.Arsenic > 6.1 ? '<span class="flag">⚠</span>' : '';
                 var sbFlag = s.metals && s.metals.Antimony && s.metals.Antimony > 51 ? '<span class="flag">⚠</span>' : '';
                 
                 list2025Html += '<div class="sample-item" style="border-color: ' + s.color + ';" data-type="2025" data-id="' + s.num + '">' +
@@ -642,7 +642,7 @@
             
             sortedEA.forEach(function(e) {
                 var hgFlag = e.mercury && e.mercury > 204 ? '<span class="flag">⚠</span>' : '';
-                var asFlag = e.arsenic && e.arsenic > 22 ? '<span class="flag">⚠</span>' : '';
+                var asFlag = e.arsenic && e.arsenic > 6.1 ? '<span class="flag">⚠</span>' : '';
                 var sbFlag = e.antimony && e.antimony > 51 ? '<span class="flag">⚠</span>' : '';
                 
                 listEAHtml += '<div class="sample-item" style="border-color: ' + e.color + ';" data-type="EA" data-id="' + e.id + '">' +
