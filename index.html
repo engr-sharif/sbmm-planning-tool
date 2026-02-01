@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>SBMM ABP Soil Sampling Planning Tool</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+    <div id="container">
+        <div id="map">
+            <div class="map-watermark">Mo Sharif - Jacobs 2026</div>
+        </div>
+        <div id="sidebar">
+            <div class="header">
+                <h2>SBMM ABP Soil Sampling - Combined Analysis</h2>
+                <p>2025 Jacobs Data + EA Historical Data | ROD ON-MINE CLEANUP LEVELS</p>
+            </div>
+
+            <div class="cleanup-levels">
+                <div class="title">ROD ON-MINE CLEANUP LEVELS (mg/kg) - 2023 ROD Table 2-3</div>
+                Hg: 204 | As: 6.1 | Sb: 51 | Tl: 1.3
+            </div>
+
+            <div class="planning-tool">
+                <h3>SAMPLE PLANNING</h3>
+                <div class="mode-selector">
+                    <button class="mode-btn active-view" id="btn-view">View</button>
+                    <button class="mode-btn" id="btn-proposed">Proposed</button>
+                    <button class="mode-btn" id="btn-stepout">Step-out</button>
+                </div>
+                <div class="coord-display">
+                    <div class="label">CURSOR POSITION</div>
+                    <div class="coords" id="cursorCoords">Lat: ---, Lon: ---</div>
+                </div>
+                <div class="planning-actions">
+                    <button class="action-btn" id="btn-undo">Undo</button>
+                    <button class="action-btn danger" id="btn-clear">Clear</button>
+                    <button class="action-btn success" id="btn-export">CSV</button>
+                    <button class="action-btn" id="btn-copy">Copy</button>
+                    <label class="action-btn" id="btn-load" style="cursor:pointer;">
+                        Load
+                        <input type="file" id="csv-upload" accept=".csv" style="display:none;">
+                    </label>
+                </div>
+            </div>
+
+            <div class="planned-points">
+                <h4>PLANNED POINTS (<span id="pointCount">0</span>)</h4>
+                <div id="plannedPointsList">
+                    <div class="no-points">Click map to add points (drag to reposition)</div>
+                </div>
+            </div>
+
+            <div class="analysis-tools">
+                <h4>ANALYSIS TOOLS</h4>
+                <div class="tool-row">
+                    <label>Color by:</label>
+                    <select id="colorBySelect">
+                        <option value="Mercury">Mercury (Hg)</option>
+                        <option value="Arsenic">Arsenic (As)</option>
+                        <option value="Antimony">Antimony (Sb)</option>
+                        <option value="Thallium">Thallium (Tl)</option>
+                    </select>
+                </div>
+                <div class="tool-row">
+                    <button class="tool-btn" id="btn-measure">Measure</button>
+                    <button class="tool-btn" id="btn-gaps">Data Gaps</button>
+                    <button class="tool-btn" id="btn-hotzone">Hot Zones</button>
+                </div>
+                <div class="tool-row">
+                    <label>Grid size:</label>
+                    <button class="grid-btn" id="btn-grid-down">&minus;</button>
+                    <span class="grid-size" id="gridSizeDisplay">50 ft</span>
+                    <button class="grid-btn" id="btn-grid-up">+</button>
+                    <button class="tool-btn active" id="btn-include-planned" style="margin-left:8px; flex:none; padding:5px 8px;" title="Include planned points in gap analysis">On</button>
+                </div>
+                <div class="measure-result" id="measureResult">
+                    Distance: <span id="distanceValue">&mdash;</span> ft (<span id="distanceMeters">&mdash;</span> m)
+                </div>
+                <div class="gap-legend" id="gapLegend">
+                    <div class="gap-legend-title">SAMPLING DENSITY (<span id="gapGridSize">50</span>ft radius)</div>
+                    <div class="gap-legend-items">
+                        <div class="gap-legend-item"><span class="gap-box" style="background:rgba(255,0,0,0.4)"></span>No samples</div>
+                        <div class="gap-legend-item"><span class="gap-box" style="background:rgba(255,255,0,0.3)"></span>1-2 samples</div>
+                        <div class="gap-legend-item"><span class="gap-box" style="background:rgba(0,255,0,0.2)"></span>3+ samples</div>
+                    </div>
+                </div>
+                <div class="gap-legend" id="hotzoneLegend">
+                    <div class="gap-legend-title" style="color:#ff6600;">HOT ZONES - <span id="hotzoneAnalyte">Hg</span> (ROD On-Mine)</div>
+                    <div class="gap-legend-items">
+                        <div class="gap-legend-item"><span class="gap-box" style="background:rgba(255,0,0,0.5)"></span>Exceeds ROD (&gt;204)</div>
+                        <div class="gap-legend-item"><span class="gap-box" style="background:rgba(255,165,0,0.4)"></span>Above PMB (35-204)</div>
+                        <div class="gap-legend-item"><span class="gap-box" style="background:rgba(0,200,0,0.25)"></span>Below PMB (&le;35)</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="section legend">
+                <h3>Legend (ROD On-Mine: Hg 35/204 mg/kg)</h3>
+                <div class="legend-row">
+                    <div class="legend-col">
+                        <div class="legend-title">2025 SAMPLES</div>
+                        <div class="legend-item"><span class="legend-dot" style="background: #d63e2a;"></span>HIGH &gt;204 (Exceeds ROD)</div>
+                        <div class="legend-item"><span class="legend-dot" style="background: #f0932b;"></span>MED 35-204 (Above PMB)</div>
+                        <div class="legend-item"><span class="legend-dot" style="background: #72af26;"></span>LOW &le;35 (Below PMB)</div>
+                        <div class="legend-item"><span class="legend-dot" style="background: #808080;"></span>Not Sampled</div>
+                    </div>
+                    <div class="legend-col">
+                        <div class="legend-title">EA SAMPLES</div>
+                        <div class="legend-item"><span class="legend-triangle" style="border-bottom-color: #d63e2a;"></span>HIGH &gt;204 (Exceeds ROD)</div>
+                        <div class="legend-item"><span class="legend-triangle" style="border-bottom-color: #f0932b;"></span>MED 35-204 (Above PMB)</div>
+                        <div class="legend-item"><span class="legend-triangle" style="border-bottom-color: #72af26;"></span>LOW &le;35 (Below PMB)</div>
+                    </div>
+                    <div class="legend-col">
+                        <div class="legend-title">OTHER</div>
+                        <div class="legend-item"><span class="legend-dot" style="background: #0099cc; border: 2px solid #006699;"></span>Soil Boring (SB)</div>
+                        <div class="legend-item"><span style="color: #cc6600; font-weight: bold; margin-right: 5px;">&#10005;</span>Test Pit (TP)</div>
+                        <div class="legend-item"><span class="legend-square" style="background: #9c27b0;"></span>EA Test Pit</div>
+                        <div class="legend-item"><span class="legend-diamond" style="border-color: #00bfff;"></span>Proposed</div>
+                        <div class="legend-item"><span class="legend-diamond" style="border-color: #ff6b00;"></span>Step-out</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="section layer-toggle">
+                <div class="layer-group">
+                    <div class="layer-group-title">2025 Jacobs Sampling</div>
+                    <label><input type="checkbox" id="toggle2025Sampled"> Sampled (32)</label>
+                    <label><input type="checkbox" id="toggle2025NotSampled"> Not Sampled (9)</label>
+                </div>
+                <div class="layer-group">
+                    <div class="layer-group-title">2025 Jacobs Borings/Test Pits</div>
+                    <label><input type="checkbox" id="toggleSoilBorings2025"> Soil Borings (44)</label>
+                    <label><input type="checkbox" id="toggleTestPits2025"> Test Pits (51)</label>
+                </div>
+                <div class="layer-group">
+                    <div class="layer-group-title">EA Historical Data</div>
+                    <label><input type="checkbox" id="toggleEASamples"> EA Samples (54)</label>
+                    <label><input type="checkbox" id="toggleEATestPits"> EA Test Pits (5)</label>
+                </div>
+                <div class="layer-group">
+                    <div class="layer-group-title">Planning</div>
+                    <label><input type="checkbox" id="togglePlanned"> Planned Points</label>
+                </div>
+                <div class="layer-group" style="border-top:1px solid #ddd;padding-top:8px;margin-top:8px;">
+                    <div class="layer-group-title" style="color:#0066cc;">Label Display</div>
+                    <label><input type="checkbox" id="toggleLabels"> Show Sample Labels</label>
+                </div>
+            </div>
+
+            <div class="tabs">
+                <button class="tab active" data-tab="tab2025">2025 Samples</button>
+                <button class="tab" data-tab="tabEA">EA Samples</button>
+            </div>
+
+            <div class="sample-list">
+                <div id="tab2025" class="tab-content active">
+                    <h3>2025 Jacobs Samples (Hg | As | Sb)</h3>
+                    <div id="sampleList2025"></div>
+                </div>
+                <div id="tabEA" class="tab-content">
+                    <h3>EA Historical Samples (Hg | As | Sb)</h3>
+                    <div id="sampleListEA"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Dependencies -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <!-- Application modules (load order matters) -->
+    <script src="js/config.js"></script>
+    <script src="js/state.js"></script>
+    <script src="js/utils.js"></script>
+    <script src="js/map.js"></script>
+    <script src="js/markers.js"></script>
+    <script src="js/planning.js"></script>
+    <script src="js/analysis.js"></script>
+    <script src="js/export.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
