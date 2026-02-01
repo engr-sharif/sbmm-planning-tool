@@ -17,73 +17,136 @@ The tool enables field teams and project engineers to:
 
 ---
 
+## Quick Start
+
+### Option 1: Original Single-File Version
+Open `index.html` directly in your browser. No server needed.
+
+### Option 2: Modular Version (v2)
+The modular version loads data from separate JSON files, which requires an HTTP server:
+
+```bash
+# Using Python (most systems have this)
+python -m http.server 8000
+
+# Or using Node.js
+npx serve .
+```
+
+Then open `http://localhost:8000/index-v2.html` in your browser.
+
+---
+
+## Project Structure
+
+```
+sbmm-planning-tool/
+├── index.html              # Original single-file version (standalone)
+├── index-v2.html           # Modular version (requires HTTP server)
+├── css/
+│   └── styles.css          # All application styles
+├── js/
+│   ├── config.js           # Thresholds, constants, map defaults
+│   ├── state.js            # Centralized application state
+│   ├── utils.js            # Shared utility functions
+│   ├── map.js              # Leaflet map setup and layer initialization
+│   ├── markers.js          # Marker creation and popup content
+│   ├── planning.js         # Point planning (add, edit, delete, drag)
+│   ├── analysis.js         # Data gap, hot zone, and measurement tools
+│   ├── export.js           # CSV export/import, clipboard
+│   └── app.js              # Application entry point and event binding
+├── data/
+│   ├── samples-2025.json   # 41 Jacobs 2025 surface samples
+│   ├── ea-samples.json     # 54 EA historical samples
+│   ├── ea-test-pits.json   # 5 EA test pit locations
+│   ├── test-pits-2025.json # 51 Jacobs 2025 test pits
+│   └── soil-borings-2025.json  # 44 Jacobs 2025 soil borings
+└── README.md
+```
+
+### Updating Data
+
+To update sample data, edit the JSON files in the `data/` directory. Each file is a JSON array of objects. The application loads these files on startup and no code changes are needed.
+
+**Example:** To add a new 2025 sample, append an object to `data/samples-2025.json`:
+```json
+{
+    "num": 42,
+    "label": "SS42",
+    "lat": 39.005000,
+    "lon": -122.671000,
+    "sampled": true,
+    "color": "#72af26",
+    "priority": "Round 2",
+    "metals": {
+        "Mercury": 15.2,
+        "Arsenic": 3.1,
+        "Antimony": 2.5,
+        "Thallium": 0.8
+    }
+}
+```
+
+### Updating Thresholds
+
+ROD cleanup levels and screening values are defined in `js/config.js`. To update them, edit the `thresholds` object:
+```javascript
+var thresholds = {
+    Mercury:  { low: 35,  high: 204, unit: 'mg/kg', abbrev: 'Hg' },
+    Arsenic:  { low: 6.1, high: 6.1, unit: 'mg/kg', abbrev: 'As' },
+    // ...
+};
+```
+
+---
+
 ## Features
 
-### 📍 Sample Visualization
+### Sample Visualization
 - **2025 Jacobs Samples (41 locations):** Circles showing sampled and not-yet-sampled locations
 - **EA Historical Samples (54 locations):** Triangles from previous site investigations
 - **EA Test Pits (5 locations):** Purple squares with pH and lithology notes
+- **2025 Test Pits (51 locations):** With depth profiles and multi-interval data
+- **2025 Soil Borings (44 locations):** With vertical depth profiles
 - **Color-coded by concentration:** Red (HIGH), Orange (MEDIUM), Green (LOW), Gray (Not Sampled)
 
-### 🎨 Color by Analyte
+### Color by Analyte
 Switch map display between contaminants of concern:
-| Analyte | Screening Level | 10x Screening |
-|---------|-----------------|---------------|
-| Mercury (Hg) | 58 mg/kg | 580 mg/kg |
-| Arsenic (As) | 6.1 mg/kg | 61 mg/kg |
-| Antimony (Sb) | 7.5 mg/kg | 75 mg/kg |
-| Thallium (Tl) | 0.4 mg/kg | 4 mg/kg |
+| Analyte | PMB (mg/kg) | ROD Cleanup Level (mg/kg) |
+|---------|-------------|---------------------------|
+| Mercury (Hg) | 35 | 204 |
+| Arsenic (As) | 6.1 | 6.1 |
+| Antimony (Sb) | 7.1 | 51 |
+| Thallium (Tl) | 1.3 | 1.3 |
 
-### 🔍 Data Gap Analysis
+### Data Gap Analysis
 - Grid-based visualization showing sampling density
 - Adjustable grid size (25ft, 50ft, 75ft, 100ft)
-- Color coding:
-  - **Red** = No samples within radius (data gap - needs sampling)
-  - **Yellow** = 1-2 samples (sparse coverage)
-  - **Green** = 3+ samples (adequate coverage)
+- Red = No samples (data gap), Yellow = Sparse (1-2), Green = Adequate (3+)
 - Dynamic updates as planned points are added
-- Toggle button to include/exclude planned points from analysis
+- Toggle to include/exclude planned points
 
-### 🔥 Hot Zone Analysis
+### Hot Zone Analysis
 - Identifies areas of elevated contamination based on selected analyte
 - Uses maximum concentration within search radius
-- Color coding:
-  - **Red** = HIGH (exceeds 10x screening level)
-  - **Orange** = MEDIUM (between 1x and 10x screening)
-  - **Green** = LOW (below screening level)
-- Helps prioritize investigation and delineation areas
+- Red = Exceeds ROD, Orange = Above PMB, Green = Below PMB
 
-### 📏 Measurement Tool
+### Measurement Tool
 - Click any two points to measure distance
 - Displays results in both feet and meters
-- Useful for verifying sample spacing requirements
 
-### 📝 Sample Planning
+### Sample Planning
 - **Proposed Points (Blue diamonds):** Primary planned sample locations
 - **Step-out Points (Orange diamonds):** Delineation or contingency samples
 - **Depth Selection:** Shallow, Deep, or Both
 - **Notes Field:** Add comments or rationale for each location
 - **Drag to Reposition:** Fine-tune locations after placement
-- **Click to Edit:** Modify notes and depth anytime
-- **Smart Numbering:** Fills gaps when points are deleted (P-1, P-2, delete P-2, next point = P-2)
+- **Smart Numbering:** Fills gaps when points are deleted
 
-### 📥 Export & Import
+### Export & Import
 - **CSV Export:** Downloads spreadsheet with Point_ID, Type, Depth, Latitude, Longitude, Note
 - **CSV Load:** Import previously exported CSV to restore planned points
 - **Copy to Clipboard:** Quick text copy for pasting into emails or documents
-
-### Saving & Loading Your Work
-The tool doesn't save points between sessions, but you can:
-1. **Export to CSV** when done planning
-2. **Load CSV** later to restore your points
-3. Share the CSV file with team members who can load it into their tool
-
-### 🗺️ Map Controls
-- Google Satellite imagery base layer
-- Layer toggles to show/hide each data type
-- Real-time cursor coordinate display
-- Scale bar in feet and meters
-- Click sample in sidebar list to zoom to location
 
 ---
 
@@ -92,51 +155,10 @@ The tool doesn't save points between sessions, but you can:
 | Dataset | Source | Count |
 |---------|--------|-------|
 | 2025 Soil Samples | Jacobs PDI Investigation | 41 locations (32 sampled, 9 pending) |
+| 2025 Test Pits | Jacobs PDI Investigation | 51 locations |
+| 2025 Soil Borings | Jacobs PDI Investigation | 44 locations |
 | EA Historical Samples | EA Engineering RI/FS | 54 locations (ABWP01 & ABWP02 areas) |
 | EA Test Pits | EA Engineering | 5 locations with pH and lithology data |
-
----
-
-## How to Use
-
-### Basic Navigation
-1. Open the tool in any modern web browser
-2. Use mouse scroll wheel or +/- buttons to zoom
-3. Click and drag to pan the map
-4. Click any sample marker to view detailed analytical results
-
-### Planning New Sample Locations
-1. Select **Proposed** (blue) or **Step-out** (orange) mode in the sidebar
-2. Click on the map where you want to place a sample
-3. Select depth interval: Shallow, Deep, or Both
-4. Add optional notes describing rationale
-5. Click **Add** to confirm placement
-
-### Editing Planned Points
-- **Click on map marker:** Opens edit popup with depth selector and notes field
-- **Click in sidebar list:** Zooms to point and opens edit popup
-- **Drag marker:** Reposition by dragging on map
-- **Delete:** Click × in sidebar or Delete button in popup
-
-### Using Analysis Tools
-1. **Data Gaps:** Activates density grid overlay
-   - Use +/- buttons to adjust grid size
-   - Toggle 📍 On/Off to include or exclude your planned points
-2. **Hot Zones:** Shows contamination intensity grid based on selected analyte
-3. **Measure:** Click button, then click two map points for distance
-4. **Color by:** Dropdown to switch analyte coloring for all markers
-
-### Exporting Your Plan
-1. Add all desired planned sample locations
-2. Click **CSV** to download a spreadsheet file
-3. Or click **Copy** to copy text to clipboard
-
-### Loading Saved Points
-1. Click **Load** button in the planning actions
-2. Select a previously exported CSV file
-3. Choose to replace existing points or add to them
-4. Points appear on map ready for further editing
-5. Share CSV files with team members to collaborate
 
 ---
 
@@ -145,10 +167,8 @@ The tool doesn't save points between sessions, but you can:
 - **Framework:** Leaflet.js v1.9.4 (open-source mapping library)
 - **Base Map:** Google Satellite Imagery
 - **Coordinate System:** WGS84 Geographic (Latitude/Longitude)
-- **File Format:** Self-contained HTML (no server required)
+- **Architecture:** Modular JavaScript (IIFE pattern, no build step)
 - **Browser Support:** Chrome, Firefox, Edge, Safari
-
-The tool runs entirely in your web browser - no installation or server connection required after initial load.
 
 ---
 
@@ -156,7 +176,8 @@ The tool runs entirely in your web browser - no installation or server connectio
 
 | Version | Date | Description |
 |---------|------|-------------|
-| REV3 | January 2026 | CSV import/load, hot zone analysis, adjustable grid size, depth selection, point editing, planned points toggle, watermark |
+| v2.0 | February 2026 | Modular architecture: separate CSS/JS/JSON files, centralized config, data-driven thresholds |
+| REV3 | January 2026 | CSV import/load, hot zone analysis, adjustable grid size, depth selection, point editing |
 | REV2 | January 2026 | Data gap analysis, measurement tool, color by analyte selector |
 | REV1 | January 2026 | Initial release with mapping and basic planning features |
 
@@ -164,18 +185,18 @@ The tool runs entirely in your web browser - no installation or server connectio
 
 ## Project Information
 
-**Site:** Sulphur Bank Mercury Mine Superfund Site  
-**Operable Unit:** OU1 - Area Between Piles (ABP)  
-**Location:** Lake County, California  
-**Client:** U.S. Environmental Protection Agency (EPA) Region 9  
-**Contractor:** Jacobs Engineering Group  
+**Site:** Sulphur Bank Mercury Mine Superfund Site
+**Operable Unit:** OU1 - Area Between Piles (ABP)
+**Location:** Lake County, California
+**Client:** U.S. Environmental Protection Agency (EPA) Region 9
+**Contractor:** Jacobs Engineering Group
 
 ---
 
 ## Author & Credits
 
-**Developed by:** Mo Sharif, EIT  
-**Organization:** Jacobs Engineering  
+**Developed by:** Mo Sharif, EIT
+**Organization:** Jacobs Engineering
 **Year:** 2026
 
 ---
@@ -186,4 +207,4 @@ This tool is intended for internal planning purposes only. All proposed sample l
 
 ---
 
-*© 2026 Jacobs Engineering - Internal Use Only*
+*2026 Jacobs Engineering - Internal Use Only*
