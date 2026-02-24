@@ -369,6 +369,7 @@ body{
   font-size:14px;flex-shrink:0;cursor:pointer;transition:all .15s;
 }
 .pt-check-btn.done{background:var(--success);border-color:var(--success);color:#fff}
+.pt-check-btn.partial{background:rgba(245,158,11,0.15);border-color:#f59e0b;color:#f59e0b;font-size:10px}
 
 /* ================================================================
    TAB BAR
@@ -657,8 +658,24 @@ body{
 /* Edit mode indicator */
 .boring-edit-badge{
   font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;
-  background:rgba(234,179,8,0.15);color:#eab308;margin-top:4px;display:inline-block;
+  background:rgba(234,179,8,0.15);color:#eab308;display:inline-block;
 }
+/* Interval badge */
+.boring-interval-badge{
+  font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;
+  background:rgba(139,92,246,0.15);color:#a78bfa;display:inline-block;
+}
+/* Depth status row in point card */
+.depth-status-row{
+  display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;
+}
+.depth-status-chip{
+  font-size:12px;font-weight:700;padding:4px 10px;border-radius:12px;
+  border:1.5px solid var(--border);background:var(--surface2);color:var(--text3);
+  cursor:pointer;
+}
+.depth-status-chip.done{border-color:#10b981;background:rgba(16,185,129,0.1);color:#10b981}
+.depth-status-chip.partial{border-color:#f59e0b;background:rgba(245,158,11,0.1);color:#f59e0b}
 /* Unmark button in boring sheet */
 .bl-unmark-btn{
   width:100%;padding:13px;border-radius:12px;border:1.5px solid rgba(239,68,68,0.4);
@@ -754,6 +771,7 @@ body{
       <div class="pt-stat"><div class="pt-stat-val" id="card-dir" style="font-size:16px;font-weight:700">--</div><div class="pt-stat-lbl">Direction</div></div>
       <div class="pt-stat"><div class="pt-stat-val" id="card-depth" style="font-size:14px;font-weight:600">--</div><div class="pt-stat-lbl">Depth</div></div>
     </div>
+    <div class="depth-status-row" id="card-depth-status" style="display:none"></div>
     <div class="pt-card-actions">
       <button class="pt-act-btn primary" id="card-nav">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
@@ -946,6 +964,22 @@ body{
 <!-- Hidden file input for photo capture -->
 <input type="file" id="photo-capture" accept="image/*" capture="environment">
 
+<!-- Depth 2 Prompt Modal -->
+<div class="gps-modal-overlay" id="d2-modal-overlay">
+  <div class="gps-modal-card">
+    <div class="gps-modal-icon">✅</div>
+    <div class="gps-modal-title">Interval 1 Logged</div>
+    <div class="gps-modal-msg">
+      This point requires a second interval<br><strong>(6–12 in)</strong>.<br>
+      Log it now or come back to it later.
+    </div>
+    <div class="gps-modal-btns">
+      <button class="gps-btn-wait" id="d2-btn-later">Later</button>
+      <button class="gps-btn-ok" id="d2-btn-now">→ Log Interval 2</button>
+    </div>
+  </div>
+</div>
+
 <!-- GPS Accuracy Warning Modal -->
 <div class="gps-modal-overlay" id="gps-modal-overlay">
   <div class="gps-modal-card">
@@ -970,8 +1004,9 @@ body{
       <div class="boring-pt-id" id="boring-pt-id">--</div>
       <div class="boring-ts" id="boring-ts">--</div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px">
+        <div class="boring-interval-badge" id="boring-interval-badge" style="display:none">Interval 1 of 2</div>
         <div class="boring-gps-badge" id="boring-gps-badge">GPS: --</div>
-        <div class="boring-edit-badge" id="boring-edit-badge" style="display:none">✏️ Editing existing log</div>
+        <div class="boring-edit-badge" id="boring-edit-badge" style="display:none">✏️ Editing</div>
       </div>
     </div>
     <div class="boring-close" id="boring-close">&times;</div>
@@ -1256,7 +1291,7 @@ const VIS_KEY='sbmm_vis_v3';
 const LOG_KEY='sbmm_log_v3';
 const PHOTO_KEY='sbmm_photos_v3';
 const GH_KEY='sbmm_gh_token';
-const BORING_KEY='sbmm_boring_v1';
+const BORING_KEY='sbmm_boring_v2'; // v2: BORING_LOGS[id] = array of interval logs
 const GPS_LOCK_FT=3.0; // ft — target accuracy threshold for sample logging
 
 const PREFS_DEF={unit:'ft',autoCenter:true,vibrate:true,autoNav:false};
@@ -1266,6 +1301,12 @@ let VISITED=JSON.parse(localStorage.getItem(VIS_KEY)||'{}');
 let VISIT_LOG=JSON.parse(localStorage.getItem(LOG_KEY)||'[]');
 let PHOTOS=JSON.parse(localStorage.getItem(PHOTO_KEY)||'{}');
 let BORING_LOGS=JSON.parse(localStorage.getItem(BORING_KEY)||'{}');
+// Migrate from v1 (single object per point → array)
+if(!localStorage.getItem(BORING_KEY)){
+  const old=JSON.parse(localStorage.getItem('sbmm_boring_v1')||'{}');
+  Object.entries(old).forEach(([id,log])=>{if(log&&typeof log==='object'&&!Array.isArray(log))BORING_LOGS[id]=[{...log,interval:1}];});
+  if(Object.keys(BORING_LOGS).length)localStorage.setItem(BORING_KEY,JSON.stringify(BORING_LOGS));
+}
 
 const S={
   lat:null,lon:null,acc:null,
@@ -1354,9 +1395,16 @@ const MARKERS={};
 
 function mkMarkerIcon(pt){
   const vis=!!VISITED[pt.id], sel=S.sel&&S.sel.id===pt.id;
+  const partial=isPointPartial(pt);
   let dotColor=pt.t==='proposed'?'#818cf8':'#fbbf24';
-  if(vis)dotColor='#10b981';
+  if(partial)dotColor='#f59e0b'; // amber for 1/2 done
+  if(vis)dotColor='#10b981';    // green for complete
   const photoCnt=PHOTOS[pt.id]?PHOTOS[pt.id].length:0;
+  // Interval progress label suffix
+  const logs=getPointLogs(pt);
+  const req=requiredIntervals(pt);
+  const intervalSuffix=req===2?` ${logs.length}/${req}`:'';
+
 
   if(sel){
     // Full callout for selected point
@@ -1369,7 +1417,7 @@ function mkMarkerIcon(pt){
           color:#fff;white-space:nowrap;
           box-shadow:0 4px 16px rgba(0,0,0,0.5),0 0 0 3px rgba(59,130,246,0.3);
           margin-bottom:5px;
-        ">${pt.id}${photoCnt>0?` 📷${photoCnt}`:''}</div>
+        ">${pt.id}${intervalSuffix}${photoCnt>0?` 📷${photoCnt}`:''}</div>
         <div style="width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-top:8px solid ${dotColor}"></div>
         <div style="width:16px;height:16px;border-radius:50%;background:${dotColor};border:2.5px solid #fff;box-shadow:0 0 12px ${dotColor};margin-top:2px"></div>
       </div>`;
@@ -1386,7 +1434,7 @@ function mkMarkerIcon(pt){
         font-family:-apple-system,sans-serif;font-size:10px;font-weight:700;
         color:rgba(255,255,255,0.9);white-space:nowrap;margin-bottom:3px;
         box-shadow:0 2px 6px rgba(0,0,0,0.4);
-      ">${shortId}${photoCnt>0?'📷':''}</div>
+      ">${shortId}${intervalSuffix}${photoCnt>0?'📷':''}</div>
       <div style="width:0;height:0;border-left:4px solid transparent;border-right:4px solid transparent;border-top:5px solid ${dotColor}"></div>
       <div style="width:${vis?10:8}px;height:${vis?10:8}px;border-radius:50%;background:${dotColor};border:2px solid rgba(255,255,255,0.9);box-shadow:0 1px 4px rgba(0,0,0,0.3)"></div>
     </div>`;
@@ -1609,12 +1657,34 @@ function updateCard(){
   const badge=document.getElementById('card-photo-badge');
   badge.style.display=pc>0?'flex':'none';
   badge.textContent=pc;
+  // Depth status row
+  const depthStatusRow=document.getElementById('card-depth-status');
+  const req=requiredIntervals(pt);
+  if(req===2){
+    depthStatusRow.style.display='flex';
+    const logs=getPointLogs(pt);
+    depthStatusRow.innerHTML='';
+    [1,2].forEach(i=>{
+      const logged=logs.find(l=>l.interval===i);
+      const label=i===1?'0–6 in':'6–12 in';
+      const chip=document.createElement('button');
+      chip.className='depth-status-chip'+(logged?' done':'');
+      chip.textContent=(logged?'✓ ':'○ ')+label;
+      chip.onclick=()=>checkGPSAndOpenLog(pt,false,i);
+      depthStatusRow.appendChild(chip);
+    });
+  }else{depthStatusRow.style.display='none';}
+
   // Update log/visit button
   const vBtn=document.getElementById('card-visit');
-  const hasLog=!!BORING_LOGS[pt.id];
-  if(VISITED[pt.id]){
-    vBtn.textContent=hasLog?'✓ Done':'✓ Done (no log)';
+  const complete=isPointComplete(pt);
+  const partial=isPointPartial(pt);
+  if(complete){
+    vBtn.textContent='✓ Complete';
     vBtn.style.background='#334155';
+  }else if(partial){
+    vBtn.textContent='📋 Log Interval 2';
+    vBtn.style.background='#f59e0b';
   }else{
     vBtn.textContent='📋 Log Sample';
     vBtn.style.background='#10b981';
@@ -1652,9 +1722,10 @@ function markVisited(pt){
 }
 
 function updateProgress(){
-  const n=Object.keys(VISITED).filter(id=>R2.find(p=>p.id===id)).length;
+  const n=R2.filter(pt=>isPointComplete(pt)).length;
+  const partial=R2.filter(pt=>isPointPartial(pt)).length;
   document.getElementById('prog-pill').textContent=`${n} / ${R2.length}`;
-  document.getElementById('visited-count').textContent=`${n} of ${R2.length} points`;
+  document.getElementById('visited-count').textContent=`${n} of ${R2.length} complete${partial>0?` · ${partial} partial`:''}`;
 }
 
 function autoSelectNearest(){
@@ -1670,12 +1741,24 @@ function autoSelectNearest(){
 // BORING LOG
 // ================================================================
 let _boringPt=null;
+let _boringInterval=1; // which depth interval (1 or 2) is currently open
 let _uscsState={};
 let _uscsResult=null;
 let _pidNA=false;
 let _speechRec=null;
 let _micActive=false;
 let _fromArrival=false;
+
+// ----------------------------------------------------------------
+// DEPTH INTERVAL HELPERS
+// ----------------------------------------------------------------
+function requiredIntervals(pt){return pt.d==='Both'?2:1;}
+function getPointLogs(pt){const l=BORING_LOGS[pt.id];return Array.isArray(l)?l:[];}
+function isPointComplete(pt){return getPointLogs(pt).length>=requiredIntervals(pt);}
+function isPointPartial(pt){const l=getPointLogs(pt).length;return l>0&&l<requiredIntervals(pt);}
+function nextIntervalNum(pt){return getPointLogs(pt).length+1;}
+function getIntervalLog(pt,interval){return getPointLogs(pt).find(l=>l.interval===interval)||null;}
+function defaultDepthForInterval(interval){return interval===1?'0–6 in':'6–12 in';}
 
 const USCS_COARSE_DENSITY=['Very Loose','Loose','Medium Dense','Dense','Very Dense'];
 const USCS_FINE_DENSITY=['Very Soft','Soft','Firm','Stiff','Very Stiff','Hard'];
@@ -1971,16 +2054,25 @@ function resetBoringForm(){
   document.getElementById('bl-mic-btn').textContent='🎙️';
 }
 
-function openBoringLog(pt,existingLog=null){
+function openBoringLog(pt,interval=null,existingLog=null){
   _boringPt=pt;
+  // Determine interval to log
+  const req=requiredIntervals(pt);
+  _boringInterval=interval||(existingLog?existingLog.interval:nextIntervalNum(pt));
   const isEdit=!!existingLog;
   resetBoringForm();
   document.getElementById('boring-pt-id').textContent=pt.id;
-  // Timestamp: show original if editing, otherwise now
+  // Timestamp
   const ts=existingLog?new Date(existingLog.timestamp):new Date();
   document.getElementById('boring-ts').textContent=
     ts.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})+
     ' · '+ts.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
+  // Interval badge
+  const intBadge=document.getElementById('boring-interval-badge');
+  if(req===2){
+    intBadge.textContent=`Interval ${_boringInterval} of 2`;
+    intBadge.style.display='inline-block';
+  }else{intBadge.style.display='none';}
   // Edit badge
   document.getElementById('boring-edit-badge').style.display=isEdit?'inline-block':'none';
   // GPS badge
@@ -1992,12 +2084,17 @@ function openBoringLog(pt,existingLog=null){
     badge.style.color=accSrc<=GPS_LOCK_FT?'#22c55e':accSrc<=10?'#eab308':'#ef4444';
   }else{badge.textContent='GPS unknown';badge.style.background='';badge.style.color='var(--text3)'}
   // Save / unmark button labels
-  document.getElementById('bl-save-btn').textContent=isEdit?'💾 Update Log':'💾 Save & Mark Done';
+  const isFinalInterval=(_boringInterval===req);
+  document.getElementById('bl-save-btn').textContent=isEdit?'💾 Update Log':(isFinalInterval?'💾 Save & Mark Done':'💾 Save Interval 1 →');
   document.getElementById('bl-unmark-btn').style.display=isEdit?'block':'none';
   if(!isEdit){
+    // Auto-select default depth for this interval
+    const defDepth=defaultDepthForInterval(_boringInterval);
+    const depthBtn=document.querySelector(`#depth-chips [data-val="${defDepth}"]`);
+    if(depthBtn){const dc=document.getElementById('depth-chips');singleChip(dc,depthBtn);}
     // Default status = Collected
-    const d=document.querySelector('#status-chips [data-val="Collected"]');
-    if(d)d.classList.add('active');
+    const stBtn=document.querySelector('#status-chips [data-val="Collected"]');
+    if(stBtn)stBtn.classList.add('active');
   }else{
     prefillBoringForm(existingLog);
   }
@@ -2090,7 +2187,11 @@ function prefillBoringForm(log){
     if(stb)singleChip(stc,stb);
   }
   // Soil description + notes
-  if(log.soil_description)document.getElementById('bl-soil-desc').value=log.soil_description;
+  if(log.soil_description){
+    const ta=document.getElementById('bl-soil-desc');
+    ta.value=log.soil_description;
+    ta.dataset.autoGenerated=log.soil_description;
+  }
   if(log.notes)document.getElementById('bl-notes').value=log.notes;
   // Refresh the description preview
   refreshDescPreview();
@@ -2101,26 +2202,48 @@ function closeBoringLog(){
   _boringPt=null;
 }
 
-function checkGPSAndOpenLog(pt,fromArrival=false){
+function checkGPSAndOpenLog(pt,fromArrival=false,forceInterval=null){
   if(!pt)return;
   _fromArrival=fromArrival;
-  // If already marked: open for editing (no GPS check needed)
-  if(VISITED[pt.id]){
-    openBoringLog(pt,BORING_LOGS[pt.id]||{id:pt.id});
+  const complete=isPointComplete(pt);
+  const partial=isPointPartial(pt);
+
+  // Complete point: offer to edit an existing interval
+  if(complete){
+    const req=requiredIntervals(pt);
+    if(req===1){
+      // Shallow — open interval 1 for editing
+      openBoringLog(pt,1,getIntervalLog(pt,1));
+    }else{
+      // Both — ask which interval to edit
+      if(confirm(`${pt.id} has both intervals logged.\n[OK] Edit Interval 1 (0–6 in)\n[Cancel] Edit Interval 2 (6–12 in)`)){
+        openBoringLog(pt,1,getIntervalLog(pt,1));
+      }else{
+        openBoringLog(pt,2,getIntervalLog(pt,2));
+      }
+    }
     return;
   }
+
+  // Partial: go straight to the next interval (no GPS check needed — already at site)
+  if(partial){
+    openBoringLog(pt,nextIntervalNum(pt),null);
+    return;
+  }
+
   // New log: enforce GPS accuracy
   const accFt=S.acc!=null?S.acc*3.28084:null;
+  const targetInterval=forceInterval||1;
   if(accFt==null||accFt>GPS_LOCK_FT){
     document.getElementById('gps-modal-acc').textContent=accFt!=null?`±${accFt.toFixed(1)} ft`:'unknown';
     document.getElementById('gps-modal-overlay').classList.add('show');
     document.getElementById('gps-btn-ok').onclick=()=>{
       document.getElementById('gps-modal-overlay').classList.remove('show');
-      openBoringLog(pt);
+      openBoringLog(pt,targetInterval,null);
     };
     document.getElementById('gps-btn-wait').onclick=()=>document.getElementById('gps-modal-overlay').classList.remove('show');
   }else{
-    openBoringLog(pt);
+    openBoringLog(pt,targetInterval,null);
   }
 }
 
@@ -2250,11 +2373,23 @@ function initBoringLogEvents(){
   // Unmark point
   document.getElementById('bl-unmark-btn').addEventListener('click',()=>{
     if(!_boringPt)return;
-    if(confirm(`Unmark ${_boringPt.id}? This will remove the completed status but keep the log data.`)){
+    const req=requiredIntervals(_boringPt);
+    const msg=req===2
+      ?`Remove Interval ${_boringInterval} log from ${_boringPt.id}? This will also un-complete the point.`
+      :`Unmark ${_boringPt.id}? Completed status will be removed but all log data is kept.`;
+    if(confirm(msg)){
       const pt=_boringPt;
-      delete VISITED[pt.id];
-      VISIT_LOG=VISIT_LOG.filter(v=>v.id!==pt.id);
-      saveVis();drawMapMarkers();renderList();updateProgress();updateCard();
+      // Remove just this interval from the array
+      BORING_LOGS[pt.id]=(BORING_LOGS[pt.id]||[]).filter(l=>l.interval!==_boringInterval);
+      if(!BORING_LOGS[pt.id].length)delete BORING_LOGS[pt.id];
+      localStorage.setItem(BORING_KEY,JSON.stringify(BORING_LOGS));
+      // Remove from VISITED if point is no longer complete
+      if(!isPointComplete(pt)){
+        delete VISITED[pt.id];
+        VISIT_LOG=VISIT_LOG.filter(v=>v.id!==pt.id);
+        saveVis();
+      }
+      drawMapMarkers();renderList();updateProgress();updateCard();
       closeBoringLog();
     }
   });
@@ -2263,24 +2398,37 @@ function initBoringLogEvents(){
   document.getElementById('bl-save-btn').addEventListener('click',()=>{
     if(!_boringPt)return;
     const vals=collectFormValues();
-    const isEdit=!!VISITED[_boringPt.id];
-    const existingLog=BORING_LOGS[_boringPt.id]||{};
+    const isEdit=!!document.getElementById('boring-edit-badge').style.display.includes('inline');
+    const now=new Date().toISOString();
+    const logs=getPointLogs(_boringPt).filter(l=>l.interval!==_boringInterval); // remove existing entry for this interval
     const log={
+      interval:_boringInterval,
       id:_boringPt.id,
-      timestamp:isEdit?(existingLog.timestamp||new Date().toISOString()):new Date().toISOString(),
-      updated:new Date().toISOString(),
-      lat:isEdit?(existingLog.lat||S.lat):S.lat,
-      lon:isEdit?(existingLog.lon||S.lon):S.lon,
-      accuracy_ft:isEdit?(existingLog.accuracy_ft||null):(S.acc!=null?+(S.acc*3.28084).toFixed(2):null),
+      timestamp:isEdit?(getIntervalLog(_boringPt,_boringInterval)||{}).timestamp||now:now,
+      updated:now,
+      lat:S.lat,lon:S.lon,
+      accuracy_ft:S.acc!=null?+(S.acc*3.28084).toFixed(2):null,
       ...vals,
     };
-    BORING_LOGS[_boringPt.id]=log;
+    logs.push(log);
+    logs.sort((a,b)=>a.interval-b.interval);
+    BORING_LOGS[_boringPt.id]=logs;
     localStorage.setItem(BORING_KEY,JSON.stringify(BORING_LOGS));
     const savedPt=_boringPt;
-    const wasEdit=!!VISITED[_boringPt.id];
-    if(!wasEdit)markVisited(savedPt);
+    const nowComplete=isPointComplete(savedPt);
+    const req=requiredIntervals(savedPt);
+    if(nowComplete&&!VISITED[savedPt.id])markVisited(savedPt);
     else{drawMapMarkers();renderList();updateProgress();updateCard();}
     closeBoringLog();
+    // Prompt to log interval 2 if needed and interval 1 was just saved
+    if(!isEdit&&req===2&&_boringInterval===1&&!isPointComplete(savedPt)){
+      document.getElementById('d2-modal-overlay').classList.add('show');
+      document.getElementById('d2-btn-now').onclick=()=>{
+        document.getElementById('d2-modal-overlay').classList.remove('show');
+        openBoringLog(savedPt,2,null);
+      };
+      document.getElementById('d2-btn-later').onclick=()=>document.getElementById('d2-modal-overlay').classList.remove('show');
+    }
     // If opened from arrival popup: auto-navigate to next nearest unvisited point
     if(_fromArrival){
       const un=R2.filter(p=>!VISITED[p.id]);
@@ -2730,8 +2878,8 @@ function renderList(){
   let pts=R2.slice();
   if(S.filter==='proposed')pts=pts.filter(p=>p.t==='proposed');
   else if(S.filter==='stepout')pts=pts.filter(p=>p.t==='stepout');
-  else if(S.filter==='todo')pts=pts.filter(p=>!VISITED[p.id]);
-  else if(S.filter==='done')pts=pts.filter(p=>!!VISITED[p.id]);
+  else if(S.filter==='todo')pts=pts.filter(p=>!isPointComplete(p));
+  else if(S.filter==='done')pts=pts.filter(p=>isPointComplete(p));
   else if(S.filter==='west')pts=pts.filter(p=>p.a==='W');
   else if(S.filter==='east')pts=pts.filter(p=>p.a==='E');
 
@@ -2742,11 +2890,15 @@ function renderList(){
 
   const frag=document.createDocumentFragment();
   pts.forEach(pt=>{
-    const vis=!!VISITED[pt.id],isSel=S.sel&&S.sel.id===pt.id;
-    const dotColor=vis?'#10b981':pt.t==='proposed'?'#818cf8':'#fbbf24';
+    const vis=isPointComplete(pt),partial=isPointPartial(pt),isSel=S.sel&&S.sel.id===pt.id;
+    const dotColor=vis?'#10b981':partial?'#f59e0b':pt.t==='proposed'?'#818cf8':'#fbbf24';
     const d=pt._d!=null?pt._d:null;
     const b=S.lat!=null?brg(S.lat,S.lon,pt.lat,pt.lon):0;
     const pc=PHOTOS[pt.id]?PHOTOS[pt.id].length:0;
+    const logs=getPointLogs(pt);
+    const req=requiredIntervals(pt);
+    const depthBadge=req===2?` <span style="font-size:11px;color:${vis?'#10b981':partial?'#f59e0b':'#94a3b8'}">${logs.length}/${req}</span>`:'';
+    const checkLabel=vis?'✓':partial?`${logs.length}/${req}`:'';
 
     const row=document.createElement('div');
     row.className='pt-row'+(isSel?' selected':'');
@@ -2754,13 +2906,13 @@ function renderList(){
     row.innerHTML=`
       <div class="pt-row-dot" style="background:${dotColor}"></div>
       <div class="pt-row-body">
-        <div class="pt-row-id">${pt.id}${pc>0?` <span style="font-size:11px;color:#3b82f6">📷${pc}</span>`:''}</div>
+        <div class="pt-row-id">${pt.id}${depthBadge}${pc>0?` <span style="font-size:11px;color:#3b82f6">📷${pc}</span>`:''}</div>
         <div class="pt-row-meta">${pt.t} · ${pt.d} · ${pt.a==='W'?'West':'East'}</div>
       </div>
       <div class="pt-row-right">
         ${d!=null?`<div class="pt-row-dist ${dCls(d)}">${fmtD(d)}</div><div class="pt-row-dir">${card(b)} ${Math.round(b)}°</div>`:''}
       </div>
-      <div class="pt-check-btn${vis?' done':''}" data-pid="${pt.id}">${vis?'✓':''}</div>
+      <div class="pt-check-btn${vis?' done':partial?' partial':''}" data-pid="${pt.id}">${checkLabel}</div>
     `;
     row.addEventListener('click',e=>{
       if(e.target.closest('.pt-check-btn'))return;
@@ -2996,33 +3148,41 @@ function initSettings(){
   if(PREFS.unit==='m'){document.getElementById('u-m').classList.add('on');document.getElementById('u-ft').classList.remove('on')}
 
   document.getElementById('export-btn').addEventListener('click',()=>{
-    const headers=['Point_ID','Timestamp','Lat','Lon','Accuracy_ft','Depth','USCS','USCS_Description','Munsell_Notation','Munsell_Name','Moisture','Density_Consistency','PID_ppm','Odor_Level','Odor_Type','Staining','Status','Soil_Description','Notes'];
+    const headers=['Point_ID','Required_Intervals','Interval','Timestamp','Lat','Lon','Accuracy_ft','Depth','USCS','USCS_Description','Munsell_Notation','Munsell_Name','Moisture','Density_Consistency','PID_ppm','Odor_Level','Odor_Type','Staining','Status','Soil_Description','Notes'];
     let csv=headers.join(',')+'\n';
-    VISIT_LOG.forEach(v=>{
-      const b=BORING_LOGS[v.id]||{};
-      const esc=s=>`"${(s||'').replace(/"/g,'""')}"`;
-      const row=[
-        v.id,
-        b.timestamp||v.time,
-        (b.lat||v.lat||'').toString(),
-        (b.lon||v.lon||'').toString(),
-        b.accuracy_ft||'',
-        b.depth||'',
-        b.uscs||'',
-        b.uscs_desc||'',
-        b.munsell_notation||'',
-        b.munsell_name||'',
-        b.moisture||'',
-        b.density_consistency||'',
-        b.pid_ppm||'',
-        b.odor_level||'',
-        b.odor_type||'',
-        b.staining||'',
-        b.status||'Collected',
-        esc(b.soil_description),
-        esc(b.notes),
-      ];
-      csv+=row.join(',')+'\n';
+    const esc=s=>`"${(s||'').replace(/"/g,'""')}"`;
+    // Include all points that have at least one interval logged
+    R2.forEach(pt=>{
+      const logs=getPointLogs(pt);
+      if(!logs.length&&!VISITED[pt.id])return; // skip unvisited with no log
+      const req=requiredIntervals(pt);
+      const intervalsToWrite=logs.length?logs:[{interval:1,timestamp:VISITED[pt.id]||'',lat:null,lon:null}];
+      intervalsToWrite.forEach(b=>{
+        const row=[
+          pt.id,
+          req,
+          b.interval||1,
+          b.timestamp||VISITED[pt.id]||'',
+          (b.lat||'').toString(),
+          (b.lon||'').toString(),
+          b.accuracy_ft||'',
+          b.depth||'',
+          b.uscs||'',
+          b.uscs_desc||'',
+          b.munsell_notation||'',
+          b.munsell_name||'',
+          b.moisture||'',
+          b.density_consistency||'',
+          b.pid_ppm||'',
+          b.odor_level||'',
+          b.odor_type||'',
+          b.staining||'',
+          b.status||'Collected',
+          esc(b.soil_description),
+          esc(b.notes),
+        ];
+        csv+=row.join(',')+'\n';
+      });
     });
     const a=document.createElement('a');
     a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
@@ -3030,7 +3190,9 @@ function initSettings(){
   });
   document.getElementById('reset-btn').addEventListener('click',()=>{
     if(confirm('Clear all visited points and visit log?')){
-      VISITED={};VISIT_LOG=[];saveVis();drawMapMarkers();renderList();updateProgress();updateCard();
+      VISITED={};VISIT_LOG=[];BORING_LOGS={};
+      saveVis();localStorage.setItem(BORING_KEY,JSON.stringify(BORING_LOGS));
+      drawMapMarkers();renderList();updateProgress();updateCard();
     }
   });
   document.getElementById('set-back').addEventListener('click',()=>{
