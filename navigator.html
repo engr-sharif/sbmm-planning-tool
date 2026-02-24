@@ -1,0 +1,1014 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>SBMM Field Navigator</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #111; color: #eee; overflow: hidden; }
+
+        /* ===== MAP ===== */
+        #map { width: 100%; height: 100vh; z-index: 1; }
+
+        /* ===== TOP BAR ===== */
+        .top-bar {
+            position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
+            background: rgba(31,78,121,0.95); backdrop-filter: blur(8px);
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 8px 12px; height: 50px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.5);
+        }
+        .top-bar .title { font-size: 14px; font-weight: 700; color: white; }
+        .top-bar .subtitle { font-size: 9px; color: rgba(255,255,255,0.7); }
+        .top-bar .gps-status {
+            display: flex; align-items: center; gap: 6px;
+            font-size: 11px; color: #aaa;
+        }
+        .gps-dot { width: 10px; height: 10px; border-radius: 50%; background: #555; }
+        .gps-dot.active { background: #00ff00; animation: pulse 2s infinite; }
+        .gps-dot.searching { background: #ffaa00; animation: pulse 1s infinite; }
+        @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+        /* ===== COMPASS / NAV PANEL ===== */
+        .nav-panel {
+            position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%);
+            z-index: 1000; width: calc(100% - 24px); max-width: 420px;
+            background: rgba(20,20,20,0.95); backdrop-filter: blur(10px);
+            border-radius: 16px; padding: 16px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.6);
+            display: none;
+        }
+        .nav-panel.active { display: block; }
+        .nav-target-name { font-size: 16px; font-weight: 700; color: #00bfff; margin-bottom: 4px; }
+        .nav-target-type { font-size: 10px; color: #888; text-transform: uppercase; letter-spacing: 1px; }
+        .nav-metrics {
+            display: flex; justify-content: space-around; margin: 12px 0;
+            text-align: center;
+        }
+        .nav-metric .value { font-size: 28px; font-weight: 700; color: #00ff00; font-family: 'Courier New', monospace; }
+        .nav-metric .unit { font-size: 10px; color: #888; }
+        .compass-ring {
+            width: 120px; height: 120px; margin: 0 auto;
+            border: 3px solid #333; border-radius: 50%;
+            position: relative; display: flex; align-items: center; justify-content: center;
+        }
+        .compass-arrow {
+            width: 0; height: 0;
+            border-left: 12px solid transparent; border-right: 12px solid transparent;
+            border-bottom: 50px solid #00ff00;
+            transform-origin: center bottom;
+            position: absolute; top: 10px;
+            transition: transform 0.3s ease;
+        }
+        .compass-n { position: absolute; top: 4px; font-size: 10px; color: #ff4444; font-weight: 700; }
+        .compass-center { font-size: 10px; color: #666; position: absolute; bottom: 25px; }
+        .nav-close {
+            position: absolute; top: 10px; right: 14px;
+            background: none; border: none; color: #888; font-size: 20px; cursor: pointer;
+        }
+        .nav-close:hover { color: #fff; }
+        .nav-priority {
+            display: inline-block; padding: 2px 8px; border-radius: 10px;
+            font-size: 10px; font-weight: 700; margin-left: 8px;
+        }
+        .nav-priority.HIGH { background: #d63e2a; color: white; }
+        .nav-priority.MEDIUM { background: #f0a030; color: white; }
+        .nav-priority.LOW { background: #72af26; color: white; }
+        .nav-priority.NOT_SAMPLED { background: #999; color: white; }
+
+        /* ===== BOTTOM BAR ===== */
+        .bottom-bar {
+            position: fixed; bottom: 0; left: 0; right: 0; z-index: 1000;
+            background: rgba(20,20,20,0.95); backdrop-filter: blur(8px);
+            display: flex; justify-content: space-around;
+            padding: 8px 12px 20px 12px;
+            border-top: 1px solid #333;
+        }
+        .bottom-btn {
+            display: flex; flex-direction: column; align-items: center; gap: 3px;
+            background: none; border: none; color: #888;
+            font-size: 9px; cursor: pointer; padding: 4px 12px;
+            border-radius: 8px; min-width: 60px;
+        }
+        .bottom-btn svg { width: 22px; height: 22px; fill: currentColor; }
+        .bottom-btn.active { color: #00bfff; }
+        .bottom-btn:hover { color: #fff; }
+
+        /* ===== SAMPLE LIST PANEL ===== */
+        .list-panel {
+            position: fixed; bottom: 70px; left: 0; right: 0; z-index: 999;
+            max-height: 55vh; overflow-y: auto;
+            background: rgba(15,15,15,0.97); backdrop-filter: blur(10px);
+            border-top: 2px solid #1F4E79;
+            display: none;
+            -webkit-overflow-scrolling: touch;
+        }
+        .list-panel.active { display: block; }
+        .list-header {
+            position: sticky; top: 0; z-index: 2;
+            background: #1F4E79; padding: 10px 14px;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .list-header h3 { font-size: 13px; color: white; }
+        .list-search {
+            width: 100%; padding: 8px 12px; margin: 0;
+            background: #222; border: 1px solid #444; border-radius: 8px;
+            color: white; font-size: 14px; outline: none;
+        }
+        .list-search:focus { border-color: #00bfff; }
+        .list-filters {
+            display: flex; gap: 6px; padding: 8px 14px; flex-wrap: wrap;
+            background: rgba(30,30,30,0.95); position: sticky; top: 0; z-index: 1;
+        }
+        .filter-chip {
+            padding: 5px 10px; border-radius: 20px; font-size: 10px;
+            border: 1px solid #444; background: #222; color: #aaa; cursor: pointer;
+        }
+        .filter-chip.active { border-color: #00bfff; color: #00bfff; background: #1a2a3a; }
+        .sample-item {
+            display: flex; align-items: center; padding: 10px 14px;
+            border-bottom: 1px solid #222; cursor: pointer;
+            transition: background 0.15s;
+        }
+        .sample-item:active { background: #1a3050; }
+        .sample-icon {
+            width: 36px; height: 36px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 11px; font-weight: 700; color: white; flex-shrink: 0;
+        }
+        .sample-info { flex: 1; margin-left: 10px; }
+        .sample-info .name { font-size: 13px; font-weight: 600; color: #eee; }
+        .sample-info .detail { font-size: 10px; color: #888; margin-top: 2px; }
+        .sample-dist {
+            font-size: 14px; font-weight: 700; color: #00ff00;
+            font-family: 'Courier New', monospace; text-align: right; min-width: 60px;
+        }
+        .sample-dist .unit { font-size: 9px; color: #888; font-weight: 400; }
+        .nav-btn-inline {
+            background: #00bfff; color: #111; border: none; border-radius: 6px;
+            padding: 4px 10px; font-size: 10px; font-weight: 700; cursor: pointer;
+            margin-top: 4px;
+        }
+
+        /* ===== DETAIL PANEL ===== */
+        .detail-panel {
+            position: fixed; bottom: 70px; left: 0; right: 0; z-index: 999;
+            max-height: 60vh; overflow-y: auto;
+            background: rgba(15,15,15,0.97); backdrop-filter: blur(10px);
+            border-top: 2px solid #1F4E79;
+            display: none; padding: 16px;
+            -webkit-overflow-scrolling: touch;
+        }
+        .detail-panel.active { display: block; }
+        .detail-panel h2 { font-size: 18px; color: #00bfff; margin-bottom: 4px; }
+        .detail-panel .type-badge { font-size: 10px; color: #888; text-transform: uppercase; letter-spacing: 1px; }
+        .detail-coords { font-family: 'Courier New', monospace; font-size: 12px; color: #00ff00; margin: 8px 0; }
+        .result-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px; }
+        .result-table th { text-align: left; padding: 6px 8px; background: #1F4E79; color: white; font-size: 10px; }
+        .result-table td { padding: 5px 8px; border-bottom: 1px solid #333; }
+        .result-table .exceed { color: #ff4444; font-weight: 700; }
+        .result-table .below { color: #72af26; }
+        .detail-actions { display: flex; gap: 8px; margin-top: 12px; }
+        .detail-actions button {
+            flex: 1; padding: 10px; border-radius: 8px; font-size: 13px;
+            font-weight: 600; cursor: pointer; border: none;
+        }
+        .btn-navigate { background: #00bfff; color: #111; }
+        .btn-close-detail { background: #333; color: #eee; }
+
+        /* ===== LOAD CSV OVERLAY ===== */
+        .overlay {
+            position: fixed; inset: 0; z-index: 2000;
+            background: rgba(0,0,0,0.8); display: none;
+            align-items: center; justify-content: center;
+        }
+        .overlay.active { display: flex; }
+        .overlay-box {
+            background: #222; border-radius: 16px; padding: 24px;
+            max-width: 360px; width: 90%; text-align: center;
+        }
+        .overlay-box h3 { font-size: 16px; margin-bottom: 12px; color: #00bfff; }
+        .overlay-box p { font-size: 12px; color: #aaa; margin-bottom: 16px; }
+        .overlay-box input[type=file] { display: none; }
+        .overlay-box .file-label {
+            display: block; padding: 14px; border: 2px dashed #444;
+            border-radius: 10px; cursor: pointer; color: #888; font-size: 13px;
+            margin-bottom: 12px;
+        }
+        .overlay-box .file-label:hover { border-color: #00bfff; color: #00bfff; }
+        .overlay-close {
+            background: #333; color: #eee; border: none; padding: 10px 24px;
+            border-radius: 8px; font-size: 13px; cursor: pointer;
+        }
+
+        /* ===== YOUR LOCATION MARKER ===== */
+        .my-location {
+            width: 18px; height: 18px; background: #4285F4;
+            border: 3px solid white; border-radius: 50%;
+            box-shadow: 0 0 10px rgba(66,133,244,0.6);
+        }
+        .my-location-ring {
+            width: 40px; height: 40px; border: 2px solid rgba(66,133,244,0.3);
+            background: rgba(66,133,244,0.1); border-radius: 50%;
+            position: absolute; top: -11px; left: -11px;
+            animation: locPulse 2s infinite;
+        }
+        @keyframes locPulse { 0%,100%{ transform:scale(1); opacity:0.6; } 50%{ transform:scale(1.3); opacity:0.2; } }
+
+        /* ===== SORT MENU ===== */
+        .sort-bar {
+            display: flex; gap: 6px; padding: 6px 14px;
+            background: #1a1a1a; align-items: center;
+        }
+        .sort-bar span { font-size: 10px; color: #666; }
+        .sort-chip {
+            padding: 4px 8px; border-radius: 12px; font-size: 10px;
+            border: 1px solid #333; background: #222; color: #888; cursor: pointer;
+        }
+        .sort-chip.active { border-color: #00bfff; color: #00bfff; }
+
+        /* ===== SETTINGS ===== */
+        .settings-panel {
+            position: fixed; bottom: 70px; left: 0; right: 0; z-index: 999;
+            max-height: 60vh; overflow-y: auto;
+            background: rgba(15,15,15,0.97); backdrop-filter: blur(10px);
+            border-top: 2px solid #1F4E79;
+            display: none; padding: 16px;
+        }
+        .settings-panel.active { display: block; }
+        .settings-panel h3 { font-size: 15px; color: #00bfff; margin-bottom: 12px; }
+        .setting-row {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 10px 0; border-bottom: 1px solid #222;
+        }
+        .setting-row .label { font-size: 13px; }
+        .setting-row .desc { font-size: 10px; color: #888; }
+        .toggle {
+            width: 44px; height: 24px; border-radius: 12px;
+            background: #444; position: relative; cursor: pointer; border: none;
+        }
+        .toggle.on { background: #00bfff; }
+        .toggle::after {
+            content: ''; width: 20px; height: 20px; border-radius: 50%;
+            background: white; position: absolute; top: 2px; left: 2px;
+            transition: left 0.2s;
+        }
+        .toggle.on::after { left: 22px; }
+
+        /* ===== LEAFLET OVERRIDES ===== */
+        .leaflet-control-zoom { display: none; }
+        .leaflet-control-attribution { font-size: 8px !important; }
+
+        /* ===== WATERMARK ===== */
+        .watermark {
+            position: fixed; bottom: 78px; right: 8px; z-index: 998;
+            font-size: 8px; color: rgba(255,255,255,0.2);
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div class="top-bar">
+    <div>
+        <div class="title">SBMM Field Navigator</div>
+        <div class="subtitle">OU1 Area Between Piles</div>
+    </div>
+    <div class="gps-status">
+        <div class="gps-dot" id="gpsDot"></div>
+        <span id="gpsText">GPS Off</span>
+    </div>
+</div>
+
+<!-- MAP -->
+<div id="map"></div>
+
+<!-- NAV PANEL (compass direction to target) -->
+<div class="nav-panel" id="navPanel">
+    <button class="nav-close" id="navClose">&times;</button>
+    <div class="nav-target-name" id="navName">--</div>
+    <div class="nav-target-type" id="navType">--</div>
+    <div class="nav-metrics">
+        <div class="nav-metric">
+            <div class="value" id="navDist">--</div>
+            <div class="unit">ft</div>
+        </div>
+        <div class="nav-metric">
+            <div class="value" id="navBearing">--</div>
+            <div class="unit">bearing</div>
+        </div>
+    </div>
+    <div class="compass-ring">
+        <div class="compass-n">N</div>
+        <div class="compass-arrow" id="compassArrow"></div>
+        <div class="compass-center" id="navETA">--</div>
+    </div>
+</div>
+
+<!-- SAMPLE LIST PANEL -->
+<div class="list-panel" id="listPanel">
+    <div class="list-header">
+        <h3 id="listTitle">All Samples</h3>
+    </div>
+    <div style="padding:8px 14px; background:#1a1a1a;">
+        <input type="text" class="list-search" id="listSearch" placeholder="Search by ID...">
+    </div>
+    <div class="list-filters" id="listFilters">
+        <span class="filter-chip active" data-filter="all">All</span>
+        <span class="filter-chip" data-filter="jacobs">Jacobs 2025</span>
+        <span class="filter-chip" data-filter="ea">EA Historical</span>
+        <span class="filter-chip" data-filter="testpit">Test Pits</span>
+        <span class="filter-chip" data-filter="planned">Planned</span>
+        <span class="filter-chip" data-filter="high">HIGH Only</span>
+    </div>
+    <div class="sort-bar">
+        <span>Sort:</span>
+        <span class="sort-chip active" data-sort="distance">Nearest</span>
+        <span class="sort-chip" data-sort="name">Name</span>
+        <span class="sort-chip" data-sort="priority">Priority</span>
+    </div>
+    <div id="sampleList"></div>
+</div>
+
+<!-- DETAIL PANEL -->
+<div class="detail-panel" id="detailPanel">
+    <div id="detailContent"></div>
+</div>
+
+<!-- SETTINGS PANEL -->
+<div class="settings-panel" id="settingsPanel">
+    <h3>Settings</h3>
+    <div class="setting-row">
+        <div>
+            <div class="label">Auto-center on GPS</div>
+            <div class="desc">Keep map centered on your location</div>
+        </div>
+        <button class="toggle on" id="toggleAutoCenter" onclick="toggleSetting('autoCenter')"></button>
+    </div>
+    <div class="setting-row">
+        <div>
+            <div class="label">Show Jacobs 2025</div>
+            <div class="desc">41 sample locations</div>
+        </div>
+        <button class="toggle on" id="toggleJacobs" onclick="toggleSetting('showJacobs')"></button>
+    </div>
+    <div class="setting-row">
+        <div>
+            <div class="label">Show EA Historical</div>
+            <div class="desc">54 historical locations</div>
+        </div>
+        <button class="toggle on" id="toggleEA" onclick="toggleSetting('showEA')"></button>
+    </div>
+    <div class="setting-row">
+        <div>
+            <div class="label">Show Test Pits</div>
+            <div class="desc">5 test pit locations</div>
+        </div>
+        <button class="toggle on" id="toggleTestPits" onclick="toggleSetting('showTestPits')"></button>
+    </div>
+    <div class="setting-row">
+        <div>
+            <div class="label">Show Planned Points</div>
+            <div class="desc">From loaded CSV</div>
+        </div>
+        <button class="toggle on" id="togglePlanned" onclick="toggleSetting('showPlanned')"></button>
+    </div>
+    <div class="setting-row">
+        <div>
+            <div class="label">Analyte Display</div>
+            <div class="desc">Color markers by selected analyte</div>
+        </div>
+        <select id="analyteSelect" onchange="changeAnalyte(this.value)" style="background:#333;color:#eee;border:1px solid #555;padding:6px 10px;border-radius:6px;font-size:12px;">
+            <option value="Mercury">Mercury (Hg)</option>
+            <option value="Arsenic">Arsenic (As)</option>
+            <option value="Antimony">Antimony (Sb)</option>
+            <option value="Thallium">Thallium (Tl)</option>
+        </select>
+    </div>
+    <div style="margin-top:16px; text-align:center;">
+        <button onclick="document.getElementById('csvInput').click()" style="background:#00bfff;color:#111;border:none;padding:12px 24px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;width:100%;">
+            Load Planned Points (CSV)
+        </button>
+        <input type="file" id="csvInput" accept=".csv" onchange="loadCSV(event)" style="display:none;">
+        <p style="font-size:10px;color:#666;margin-top:6px;">Load CSV exported from the Planning Tool</p>
+    </div>
+</div>
+
+<!-- BOTTOM BAR -->
+<div class="bottom-bar">
+    <button class="bottom-btn active" id="btnMap" onclick="showTab('map')">
+        <svg viewBox="0 0 24 24"><path d="M20.5 3l-.16.03L15 5.1 9 3 3.36 4.9c-.21.07-.36.25-.36.48V20.5c0 .28.22.5.5.5l.16-.03L9 18.9l6 2.1 5.64-1.9c.21-.07.36-.25.36-.48V3.5c0-.28-.22-.5-.5-.5zM15 19l-6-2.11V5l6 2.11V19z"/></svg>
+        Map
+    </button>
+    <button class="bottom-btn" id="btnList" onclick="showTab('list')">
+        <svg viewBox="0 0 24 24"><path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/></svg>
+        Samples
+    </button>
+    <button class="bottom-btn" id="btnLocate" onclick="centerOnMe()">
+        <svg viewBox="0 0 24 24"><path d="M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm8.94 3A8.994 8.994 0 0013 3.06V1h-2v2.06A8.994 8.994 0 003.06 11H1v2h2.06A8.994 8.994 0 0011 20.94V23h2v-2.06A8.994 8.994 0 0020.94 13H23v-2h-2.06zM12 19c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z"/></svg>
+        Locate
+    </button>
+    <button class="bottom-btn" id="btnSettings" onclick="showTab('settings')">
+        <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 00.12-.61l-1.92-3.32a.488.488 0 00-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 00-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.07.62-.07.94s.02.64.07.94l-2.03 1.58a.49.49 0 00-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+        Settings
+    </button>
+</div>
+
+<div class="watermark">SBMM Field Navigator | Jacobs 2026</div>
+
+<!-- ===== SCRIPTS ===== -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+// ===== DATA =====
+var samples2025 = [{"num": 1, "label": "SS1", "lat": 39.005268, "lon": -122.670858, "sampled": true, "metals": {"Aluminum": 6300.0, "Antimony": 13.0, "Arsenic": 32.0, "Barium": 160.0, "Beryllium": 0.12, "Cadmium": 0.1, "Calcium": 1000.0, "Chromium": 28.0, "Cobalt": 3.0, "Copper": 25.0, "Iron": 32000.0, "Lead": 17.0, "Magnesium": 1200.0, "Manganese": 310.0, "Mercury": 210.0, "Nickel": 13.0, "Potassium": 1400.0, "Selenium": 0.61, "Silver": 0.5, "Sodium": 1000.0, "Thallium": 0.12, "Vanadium": 33.0, "Zinc": 28.0}, "priority": "HIGH", "color": "#d63e2a"}, {"num": 2, "label": "SS2", "lat": 39.005286, "lon": -122.670135, "sampled": true, "metals": {"Aluminum": 9500.0, "Antimony": 2.2, "Arsenic": 16.0, "Barium": 150.0, "Beryllium": 0.34, "Cadmium": 0.16, "Calcium": 980.0, "Chromium": 43.0, "Cobalt": 11.0, "Copper": 45.0, "Iron": 32000.0, "Lead": 17.0, "Magnesium": 2900.0, "Manganese": 1100.0, "Mercury": 270.0, "Nickel": 36.0, "Potassium": 1400.0, "Selenium": 0.73, "Silver": 0.096, "Sodium": 970.0, "Thallium": 0.12, "Vanadium": 38.0, "Zinc": 70.0}, "priority": "HIGH", "color": "#d63e2a"}, {"num": 3, "label": "SS3", "lat": 39.005681, "lon": -122.670723, "sampled": true, "metals": {"Aluminum": 26000.0, "Antimony": 1.0, "Arsenic": 1.9, "Barium": 380.0, "Beryllium": 0.53, "Cadmium": 0.94, "Calcium": 6100.0, "Chromium": 110.0, "Cobalt": 12.0, "Copper": 35.0, "Iron": 35000.0, "Lead": 24.0, "Magnesium": 1200.0, "Manganese": 790.0, "Mercury": 16.0, "Nickel": 15.0, "Potassium": 1600.0, "Selenium": 0.66, "Silver": 0.52, "Sodium": 1000.0, "Thallium": 0.41, "Vanadium": 140.0, "Zinc": 60.0}, "priority": "LOW", "color": "#72af26"}, {"num": 4, "label": "SS4", "lat": 39.004826, "lon": -122.668794, "sampled": true, "metals": {"Aluminum": 14000.0, "Antimony": 4.8, "Arsenic": 13.0, "Barium": 370.0, "Beryllium": 0.28, "Cadmium": 0.64, "Calcium": 3200.0, "Chromium": 73.0, "Cobalt": 9.4, "Copper": 30.0, "Iron": 33000.0, "Lead": 28.0, "Magnesium": 1200.0, "Manganese": 440.0, "Mercury": 960.0, "Nickel": 19.0, "Potassium": 1500.0, "Selenium": 0.57, "Silver": 0.52, "Sodium": 1000.0, "Thallium": 0.29, "Vanadium": 96.0, "Zinc": 49.0}, "priority": "HIGH", "color": "#d63e2a"}, {"num": 5, "label": "SS5", "lat": 39.005078, "lon": -122.669205, "sampled": true, "metals": {"Aluminum": 15000.0, "Antimony": 37.0, "Arsenic": 40.0, "Barium": 270.0, "Beryllium": 0.23, "Cadmium": 0.25, "Calcium": 1700.0, "Chromium": 51.0, "Cobalt": 6.2, "Copper": 29.0, "Iron": 29000.0, "Lead": 16.0, "Magnesium": 1800.0, "Manganese": 190.0, "Mercury": 230.0, "Nickel": 19.0, "Potassium": 1500.0, "Selenium": 0.44, "Silver": 0.49, "Sodium": 980.0, "Thallium": 0.16, "Vanadium": 57.0, "Zinc": 41.0}, "priority": "HIGH", "color": "#d63e2a"}, {"num": 6, "label": "SS6", "lat": 39.005428, "lon": -122.669195, "sampled": true, "metals": {"Aluminum": 12000.0, "Antimony": 0.65, "Arsenic": 6.3, "Barium": 120.0, "Beryllium": 0.27, "Cadmium": 0.2, "Calcium": 3300.0, "Chromium": 98.0, "Cobalt": 16.0, "Copper": 34.0, "Iron": 27000.0, "Lead": 6.0, "Magnesium": 13000.0, "Manganese": 470.0, "Mercury": 1.9, "Nickel": 120.0, "Potassium": 970.0, "Selenium": 0.45, "Silver": 0.49, "Sodium": 970.0, "Thallium": 0.19, "Vanadium": 53.0, "Zinc": 70.0}, "priority": "LOW", "color": "#72af26"}, {"num": 7, "label": "SS7", "lat": 39.005667, "lon": -122.66933, "sampled": true, "metals": {"Aluminum": 13000.0, "Antimony": 3.4, "Arsenic": 6.2, "Barium": 140.0, "Beryllium": 0.29, "Cadmium": 0.27, "Calcium": 3500.0, "Chromium": 60.0, "Cobalt": 13.0, "Copper": 28.0, "Iron": 28000.0, "Lead": 6.6, "Magnesium": 11000.0, "Manganese": 830.0, "Mercury": 17.0, "Nickel": 86.0, "Potassium": 930.0, "Selenium": 0.48, "Silver": 0.58, "Sodium": 1200.0, "Thallium": 0.23, "Vanadium": 44.0, "Zinc": 56.0}, "priority": "LOW", "color": "#72af26"}, {"num": 8, "label": "SS8", "lat": 39.006076, "lon": -122.668851, "sampled": true, "metals": {"Aluminum": 1700.0, "Antimony": 0.86, "Arsenic": 0.59, "Barium": 120.0, "Beryllium": 0.54, "Cadmium": 1.1, "Calcium": 1800.0, "Chromium": 12.0, "Cobalt": 0.73, "Copper": 12.0, "Iron": 3100.0, "Lead": 18.0, "Magnesium": 1100.0, "Manganese": 150.0, "Mercury": 65.0, "Nickel": 3.6, "Potassium": 1100.0, "Selenium": 2.7, "Silver": 0.54, "Sodium": 1100.0, "Thallium": 0.091, "Vanadium": 11.0, "Zinc": 12.0}, "priority": "MEDIUM", "color": "#f0932b"}, {"num": 9, "label": "SS9", "lat": 39.00635, "lon": -122.669578, "sampled": true, "metals": {"Aluminum": 21000.0, "Antimony": 2.1, "Arsenic": 7.0, "Barium": 300.0, "Beryllium": 0.4, "Cadmium": 0.76, "Calcium": 3000.0, "Chromium": 110.0, "Cobalt": 13.0, "Copper": 35.0, "Iron": 33000.0, "Lead": 22.0, "Magnesium": 3600.0, "Manganese": 520.0, "Mercury": 55.0, "Nickel": 42.0, "Potassium": 1200.0, "Selenium": 0.71, "Silver": 0.51, "Sodium": 1000.0, "Thallium": 0.32, "Vanadium": 120.0, "Zinc": 63.0}, "priority": "MEDIUM", "color": "#f0932b"}, {"num": 10, "label": "SS10", "lat": 39.006838, "lon": -122.669621, "sampled": true, "metals": {"Aluminum": 14000.0, "Antimony": 1.2, "Arsenic": 5.3, "Barium": 120.0, "Beryllium": 0.31, "Cadmium": 0.37, "Calcium": 3600.0, "Chromium": 49.0, "Cobalt": 11.0, "Copper": 21.0, "Iron": 21000.0, "Lead": 5.8, "Magnesium": 7600.0, "Manganese": 500.0, "Mercury": 19.0, "Nickel": 49.0, "Potassium": 960.0, "Selenium": 0.43, "Silver": 0.48, "Sodium": 960.0, "Thallium": 0.091, "Vanadium": 41.0, "Zinc": 44.0}, "priority": "LOW", "color": "#72af26"}, {"num": 11, "label": "SS11", "lat": 39.00721, "lon": -122.669531, "sampled": true, "metals": {"Aluminum": 6900.0, "Antimony": 0.85, "Arsenic": 2.3, "Barium": 67.0, "Beryllium": 0.13, "Cadmium": 0.22, "Calcium": 4100.0, "Chromium": 32.0, "Cobalt": 9.0, "Copper": 18.0, "Iron": 12000.0, "Lead": 2.9, "Magnesium": 8600.0, "Manganese": 240.0, "Mercury": 9.1, "Nickel": 26.0, "Potassium": 990.0, "Selenium": 2.5, "Silver": 0.5, "Sodium": 990.0, "Thallium": 0.2, "Vanadium": 21.0, "Zinc": 24.0}, "priority": "LOW", "color": "#72af26"}, {"num": 12, "label": "SS12", "lat": 39.007476, "lon": -122.669684, "sampled": true, "metals": {"Aluminum": 15000.0, "Antimony": 0.2, "Arsenic": 1.5, "Barium": 250.0, "Beryllium": 0.19, "Cadmium": 0.73, "Calcium": 14000.0, "Chromium": 76.0, "Cobalt": 11.0, "Copper": 26.0, "Iron": 19000.0, "Lead": 17.0, "Magnesium": 6000.0, "Manganese": 320.0, "Mercury": 55.0, "Nickel": 32.0, "Potassium": 1000.0, "Selenium": 0.41, "Silver": 0.51, "Sodium": 1000.0, "Thallium": 0.17, "Vanadium": 78.0, "Zinc": 33.0}, "priority": "MEDIUM", "color": "#f0932b"}, {"num": 13, "label": "SS13", "lat": 39.007543, "lon": -122.668894, "sampled": true, "metals": {"Aluminum": 20000.0, "Antimony": 1.2, "Arsenic": 3.1, "Barium": 190.0, "Beryllium": 0.36, "Cadmium": 0.7, "Calcium": 1100.0, "Chromium": 80.0, "Cobalt": 6.8, "Copper": 26.0, "Iron": 37000.0, "Lead": 16.0, "Magnesium": 1100.0, "Manganese": 1100.0, "Mercury": 780.0, "Nickel": 13.0, "Potassium": 860.0, "Selenium": 0.77, "Silver": 0.54, "Sodium": 1100.0, "Thallium": 0.3, "Vanadium": 120.0, "Zinc": 35.0}, "priority": "HIGH", "color": "#d63e2a"}, {"num": 14, "label": "SS14", "lat": 39.00728, "lon": -122.668997, "sampled": false, "metals": {"Aluminum": null, "Antimony": null, "Arsenic": null, "Barium": null, "Beryllium": null, "Cadmium": null, "Calcium": null, "Chromium": null, "Cobalt": null, "Copper": null, "Iron": null, "Lead": null, "Magnesium": null, "Manganese": null, "Mercury": null, "Nickel": null, "Potassium": null, "Selenium": null, "Silver": null, "Sodium": null, "Thallium": null, "Vanadium": null, "Zinc": null}, "priority": "NOT SAMPLED", "color": "#808080"}, {"num": 15, "label": "SS15", "lat": 39.007055, "lon": -122.668757, "sampled": true, "metals": {"Aluminum": 12000.0, "Antimony": 0.24, "Arsenic": 1.2, "Barium": 320.0, "Beryllium": 0.33, "Cadmium": 1.0, "Calcium": 5600.0, "Chromium": 59.0, "Cobalt": 5.4, "Copper": 22.0, "Iron": 14000.0, "Lead": 22.0, "Magnesium": 890.0, "Manganese": 530.0, "Mercury": 170.0, "Nickel": 9.4, "Potassium": 1500.0, "Selenium": 0.49, "Silver": 0.51, "Sodium": 1000.0, "Thallium": 0.34, "Vanadium": 57.0, "Zinc": 19.0}, "priority": "MEDIUM", "color": "#f0932b"}, {"num": 16, "label": "SS16", "lat": 39.007146, "lon": -122.668047, "sampled": true, "metals": {"Aluminum": 14000.0, "Antimony": 0.35, "Arsenic": 1.7, "Barium": 320.0, "Beryllium": 0.36, "Cadmium": 0.64, "Calcium": 2000.0, "Chromium": 65.0, "Cobalt": 4.4, "Copper": 19.0, "Iron": 21000.0, "Lead": 26.0, "Magnesium": 900.0, "Manganese": 470.0, "Mercury": 56.0, "Nickel": 11.0, "Potassium": 890.0, "Selenium": 2.7, "Silver": 0.55, "Sodium": 1100.0, "Thallium": 0.21, "Vanadium": 83.0, "Zinc": 24.0}, "priority": "MEDIUM", "color": "#f0932b"}, {"num": 17, "label": "SS17", "lat": 39.006847, "lon": -122.668618, "sampled": true, "metals": {"Aluminum": 6300.0, "Antimony": 0.39, "Arsenic": 1.1, "Barium": 250.0, "Beryllium": 0.13, "Cadmium": 0.58, "Calcium": 1100.0, "Chromium": 23.0, "Cobalt": 2.0, "Copper": 15.0, "Iron": 10000.0, "Lead": 16.0, "Magnesium": 1100.0, "Manganese": 100.0, "Mercury": 1000.0, "Nickel": 5.5, "Potassium": 1100.0, "Selenium": 2.8, "Silver": 0.56, "Sodium": 1100.0, "Thallium": 0.27, "Vanadium": 30.0, "Zinc": 10.0}, "priority": "HIGH", "color": "#d63e2a"}, {"num": 18, "label": "SS18", "lat": 39.006493, "lon": -122.668758, "sampled": true, "metals": {"Aluminum": 4700.0, "Antimony": 0.45, "Arsenic": 1.3, "Barium": 190.0, "Beryllium": 0.12, "Cadmium": 0.43, "Calcium": 1100.0, "Chromium": 19.0, "Cobalt": 1.0, "Copper": 22.0, "Iron": 6700.0, "Lead": 14.0, "Magnesium": 1100.0, "Manganese": 78.0, "Mercury": 1500.0, "Nickel": 4.6, "Potassium": 590.0, "Selenium": 0.45, "Silver": 0.11, "Sodium": 1100.0, "Thallium": 0.19, "Vanadium": 23.0, "Zinc": 10.0}, "priority": "HIGH", "color": "#d63e2a"}, {"num": 19, "label": "SS19", "lat": 39.005612, "lon": -122.668144, "sampled": false, "metals": {"Aluminum": null, "Antimony": null, "Arsenic": null, "Barium": null, "Beryllium": null, "Cadmium": null, "Calcium": null, "Chromium": null, "Cobalt": null, "Copper": null, "Iron": null, "Lead": null, "Magnesium": null, "Manganese": null, "Mercury": null, "Nickel": null, "Potassium": null, "Selenium": null, "Silver": null, "Sodium": null, "Thallium": null, "Vanadium": null, "Zinc": null}, "priority": "NOT SAMPLED", "color": "#808080"}, {"num": 20, "label": "SS20", "lat": 39.005327, "lon": -122.668416, "sampled": true, "metals": {"Aluminum": 14000.0, "Antimony": 0.53, "Arsenic": 2.1, "Barium": 290.0, "Beryllium": 0.18, "Cadmium": 0.88, "Calcium": 1300.0, "Chromium": 60.0, "Cobalt": 3.5, "Copper": 15.0, "Iron": 20000.0, "Lead": 19.0, "Magnesium": 670.0, "Manganese": 160.0, "Mercury": 280.0, "Nickel": 7.8, "Potassium": 1100.0, "Selenium": 2.8, "Silver": 0.55, "Sodium": 1100.0, "Thallium": 0.26, "Vanadium": 74.0, "Zinc": 19.0}, "priority": "HIGH", "color": "#d63e2a"}, {"num": 21, "label": "SS21", "lat": 39.004762, "lon": -122.667727, "sampled": true, "metals": {"Aluminum": 16000.0, "Antimony": 4.7, "Arsenic": 11.0, "Barium": 190.0, "Beryllium": 0.4, "Cadmium": 0.49, "Calcium": 7400.0, "Chromium": 56.0, "Cobalt": 10.0, "Copper": 23.0, "Iron": 22000.0, "Lead": 13.0, "Magnesium": 6100.0, "Manganese": 420.0, "Mercury": 130.0, "Nickel": 38.0, "Potassium": 1600.0, "Selenium": 0.37, "Silver": 0.51, "Sodium": 1000.0, "Thallium": 0.19, "Vanadium": 55.0, "Zinc": 50.0}, "priority": "MEDIUM", "color": "#f0932b"}, {"num": 22, "label": "SS22", "lat": 39.004997, "lon": -122.667652, "sampled": true, "metals": {"Aluminum": 20000.0, "Antimony": 4.2, "Arsenic": 7.8, "Barium": 340.0, "Beryllium": 0.19, "Cadmium": 0.7, "Calcium": 2000.0, "Chromium": 67.0, "Cobalt": 3.6, "Copper": 21.0, "Iron": 27000.0, "Lead": 19.0, "Magnesium": 570.0, "Manganese": 190.0, "Mercury": 360.0, "Nickel": 6.2, "Potassium": 740.0, "Selenium": 2.7, "Silver": 0.53, "Sodium": 1100.0, "Thallium": 0.28, "Vanadium": 92.0, "Zinc": 24.0}, "priority": "HIGH", "color": "#d63e2a"}, {"num": 23, "label": "SS23", "lat": 39.005229, "lon": -122.667758, "sampled": false, "metals": {"Aluminum": null, "Antimony": null, "Arsenic": null, "Barium": null, "Beryllium": null, "Cadmium": null, "Calcium": null, "Chromium": null, "Cobalt": null, "Copper": null, "Iron": null, "Lead": null, "Magnesium": null, "Manganese": null, "Mercury": null, "Nickel": null, "Potassium": null, "Selenium": null, "Silver": null, "Sodium": null, "Thallium": null, "Vanadium": null, "Zinc": null}, "priority": "NOT SAMPLED", "color": "#808080"}, {"num": 24, "label": "SS24", "lat": 39.005414, "lon": -122.667103, "sampled": false, "metals": {"Aluminum": null, "Antimony": null, "Arsenic": null, "Barium": null, "Beryllium": null, "Cadmium": null, "Calcium": null, "Chromium": null, "Cobalt": null, "Copper": null, "Iron": null, "Lead": null, "Magnesium": null, "Manganese": null, "Mercury": null, "Nickel": null, "Potassium": null, "Selenium": null, "Silver": null, "Sodium": null, "Thallium": null, "Vanadium": null, "Zinc": null}, "priority": "NOT SAMPLED", "color": "#808080"}, {"num": 25, "label": "SS25", "lat": 39.005364, "lon": -122.66664, "sampled": false, "metals": {"Aluminum": null, "Antimony": null, "Arsenic": null, "Barium": null, "Beryllium": null, "Cadmium": null, "Calcium": null, "Chromium": null, "Cobalt": null, "Copper": null, "Iron": null, "Lead": null, "Magnesium": null, "Manganese": null, "Mercury": null, "Nickel": null, "Potassium": null, "Selenium": null, "Silver": null, "Sodium": null, "Thallium": null, "Vanadium": null, "Zinc": null}, "priority": "NOT SAMPLED", "color": "#808080"}, {"num": 26, "label": "SS26", "lat": 39.005175, "lon": -122.665878, "sampled": false, "metals": {"Aluminum": null, "Antimony": null, "Arsenic": null, "Barium": null, "Beryllium": null, "Cadmium": null, "Calcium": null, "Chromium": null, "Cobalt": null, "Copper": null, "Iron": null, "Lead": null, "Magnesium": null, "Manganese": null, "Mercury": null, "Nickel": null, "Potassium": null, "Selenium": null, "Silver": null, "Sodium": null, "Thallium": null, "Vanadium": null, "Zinc": null}, "priority": "NOT SAMPLED", "color": "#808080"}, {"num": 27, "label": "SS27", "lat": 39.005487, "lon": -122.66583, "sampled": false, "metals": {"Aluminum": null, "Antimony": null, "Arsenic": null, "Barium": null, "Beryllium": null, "Cadmium": null, "Calcium": null, "Chromium": null, "Cobalt": null, "Copper": null, "Iron": null, "Lead": null, "Magnesium": null, "Manganese": null, "Mercury": null, "Nickel": null, "Potassium": null, "Selenium": null, "Silver": null, "Sodium": null, "Thallium": null, "Vanadium": null, "Zinc": null}, "priority": "NOT SAMPLED", "color": "#808080"}, {"num": 28, "label": "SS28", "lat": 39.005789, "lon": -122.665732, "sampled": false, "metals": {"Aluminum": null, "Antimony": null, "Arsenic": null, "Barium": null, "Beryllium": null, "Cadmium": null, "Calcium": null, "Chromium": null, "Cobalt": null, "Copper": null, "Iron": null, "Lead": null, "Magnesium": null, "Manganese": null, "Mercury": null, "Nickel": null, "Potassium": null, "Selenium": null, "Silver": null, "Sodium": null, "Thallium": null, "Vanadium": null, "Zinc": null}, "priority": "NOT SAMPLED", "color": "#808080"}, {"num": 29, "label": "SS29", "lat": 39.005967, "lon": -122.666705, "sampled": true, "metals": {"Aluminum": 2800.0, "Antimony": 0.45, "Arsenic": 0.47, "Barium": 140.0, "Beryllium": 0.097, "Cadmium": 0.22, "Calcium": 1100.0, "Chromium": 11.0, "Cobalt": 0.77, "Copper": 8.6, "Iron": 3700.0, "Lead": 14.0, "Magnesium": 1100.0, "Manganese": 19.0, "Mercury": 230.0, "Nickel": 3.8, "Potassium": 890.0, "Selenium": 2.7, "Silver": 0.55, "Sodium": 1100.0, "Thallium": 0.22, "Vanadium": 14.0, "Zinc": 7.2}, "priority": "HIGH", "color": "#d63e2a"}, {"num": 30, "label": "SS30", "lat": 39.005968, "lon": -122.66646, "sampled": true, "metals": {"Aluminum": 7300.0, "Antimony": 0.29, "Arsenic": 0.9, "Barium": 240.0, "Beryllium": 0.13, "Cadmium": 0.37, "Calcium": 1100.0, "Chromium": 25.0, "Cobalt": 0.89, "Copper": 11.0, "Iron": 5800.0, "Lead": 12.0, "Magnesium": 330.0, "Manganese": 43.0, "Mercury": 390.0, "Nickel": 5.3, "Potassium": 840.0, "Selenium": 2.8, "Silver": 0.11, "Sodium": 1100.0, "Thallium": 0.23, "Vanadium": 25.0, "Zinc": 11.0}, "priority": "HIGH", "color": "#d63e2a"}, {"num": 31, "label": "SS31", "lat": 39.006175, "lon": -122.666803, "sampled": true, "metals": {"Aluminum": 2100.0, "Antimony": 0.31, "Arsenic": 0.57, "Barium": 78.0, "Beryllium": 0.56, "Cadmium": 0.22, "Calcium": 1100.0, "Chromium": 10.0, "Cobalt": 0.37, "Copper": 7.5, "Iron": 3100.0, "Lead": 6.8, "Magnesium": 1100.0, "Manganese": 19.0, "Mercury": 230.0, "Nickel": 2.2, "Potassium": 360.0, "Selenium": 2.8, "Silver": 0.098, "Sodium": 1100.0, "Thallium": 0.22, "Vanadium": 11.0, "Zinc": 4.7}, "priority": "HIGH", "color": "#d63e2a"}, {"num": 32, "label": "SS32", "lat": 39.006168, "lon": -122.666265, "sampled": true, "metals": {"Aluminum": 11000.0, "Antimony": 3.1, "Arsenic": 7.9, "Barium": 230.0, "Beryllium": 0.18, "Cadmium": 0.25, "Calcium": 4200.0, "Chromium": 40.0, "Cobalt": 9.6, "Copper": 15.0, "Iron": 19000.0, "Lead": 10.0, "Magnesium": 2100.0, "Manganese": 360.0, "Mercury": 220.0, "Nickel": 24.0, "Potassium": 1200.0, "Selenium": 2.5, "Silver": 0.5, "Sodium": 1000.0, "Thallium": 0.092, "Vanadium": 37.0, "Zinc": 43.0}, "priority": "HIGH", "color": "#d63e2a"}, {"num": 33, "label": "SS33", "lat": 39.006377, "lon": -122.665714, "sampled": true, "metals": {"Aluminum": 26000.0, "Antimony": 0.26, "Arsenic": 2.0, "Barium": 290.0, "Beryllium": 0.45, "Cadmium": 0.87, "Calcium": 2200.0, "Chromium": 140.0, "Cobalt": 15.0, "Copper": 26.0, "Iron": 44000.0, "Lead": 19.0, "Magnesium": 1300.0, "Manganese": 620.0, "Mercury": 170.0, "Nickel": 14.0, "Potassium": 820.0, "Selenium": 0.58, "Silver": 0.51, "Sodium": 1000.0, "Thallium": 0.22, "Vanadium": 180.0, "Zinc": 49.0}, "priority": "MEDIUM", "color": "#f0932b"}, {"num": 34, "label": "SS34", "lat": 39.006612, "lon": -122.665525, "sampled": true, "metals": {"Aluminum": 30000.0, "Antimony": 0.19, "Arsenic": 2.8, "Barium": 270.0, "Beryllium": 0.52, "Cadmium": 1.2, "Calcium": 2700.0, "Chromium": 120.0, "Cobalt": 17.0, "Copper": 22.0, "Iron": 46000.0, "Lead": 18.0, "Magnesium": 2000.0, "Manganese": 820.0, "Mercury": 110.0, "Nickel": 18.0, "Potassium": 790.0, "Selenium": 0.61, "Silver": 0.08, "Sodium": 1000.0, "Thallium": 0.2, "Vanadium": 170.0, "Zinc": 69.0}, "priority": "MEDIUM", "color": "#f0932b"}, {"num": 35, "label": "SS35", "lat": 39.006936, "lon": -122.666106, "sampled": true, "metals": {"Aluminum": 3800.0, "Antimony": 8.3, "Arsenic": 7.2, "Barium": 330.0, "Beryllium": 0.076, "Cadmium": 0.35, "Calcium": 4700.0, "Chromium": 17.0, "Cobalt": 2.3, "Copper": 9.4, "Iron": 12000.0, "Lead": 27.0, "Magnesium": 630.0, "Manganese": 2700.0, "Mercury": 1200.0, "Nickel": 5.6, "Potassium": 1200.0, "Selenium": 2.9, "Silver": 0.57, "Sodium": 1100.0, "Thallium": 0.46, "Vanadium": 25.0, "Zinc": 29.0}, "priority": "HIGH", "color": "#d63e2a"}, {"num": 36, "label": "SS36", "lat": 39.007419, "lon": -122.666159, "sampled": false, "metals": {"Aluminum": null, "Antimony": null, "Arsenic": null, "Barium": null, "Beryllium": null, "Cadmium": null, "Calcium": null, "Chromium": null, "Cobalt": null, "Copper": null, "Iron": null, "Lead": null, "Magnesium": null, "Manganese": null, "Mercury": null, "Nickel": null, "Potassium": null, "Selenium": null, "Silver": null, "Sodium": null, "Thallium": null, "Vanadium": null, "Zinc": null}, "priority": "NOT SAMPLED", "color": "#808080"}, {"num": 37, "label": "SS37", "lat": 39.006667, "lon": -122.66721, "sampled": true, "metals": {"Aluminum": 5400.0, "Antimony": 0.66, "Arsenic": 0.93, "Barium": 220.0, "Beryllium": 0.1, "Cadmium": 0.22, "Calcium": 1100.0, "Chromium": 17.0, "Cobalt": 2.4, "Copper": 11.0, "Iron": 8700.0, "Lead": 25.0, "Magnesium": 470.0, "Manganese": 150.0, "Mercury": 470.0, "Nickel": 5.4, "Potassium": 620.0, "Selenium": 2.8, "Silver": 0.56, "Sodium": 1100.0, "Thallium": 0.095, "Vanadium": 21.0, "Zinc": 17.0}, "priority": "HIGH", "color": "#d63e2a"}, {"num": 38, "label": "SS38", "lat": 39.00694, "lon": -122.667462, "sampled": true, "metals": {"Aluminum": 6400.0, "Antimony": 3.9, "Arsenic": 3.5, "Barium": 250.0, "Beryllium": 0.067, "Cadmium": 0.43, "Calcium": 1000.0, "Chromium": 23.0, "Cobalt": 1.2, "Copper": 14.0, "Iron": 11000.0, "Lead": 12.0, "Magnesium": 1000.0, "Manganese": 67.0, "Mercury": 620.0, "Nickel": 3.7, "Potassium": 900.0, "Selenium": 2.6, "Silver": 0.52, "Sodium": 1000.0, "Thallium": 0.14, "Vanadium": 24.0, "Zinc": 12.0}, "priority": "HIGH", "color": "#d63e2a"}, {"num": 39, "label": "SS39", "lat": 39.00759, "lon": -122.667635, "sampled": true, "metals": {"Aluminum": 24000.0, "Antimony": 5.3, "Arsenic": 6.0, "Barium": 400.0, "Beryllium": 0.59, "Cadmium": 0.79, "Calcium": 2600.0, "Chromium": 91.0, "Cobalt": 12.0, "Copper": 30.0, "Iron": 32000.0, "Lead": 27.0, "Magnesium": 1400.0, "Manganese": 640.0, "Mercury": 220.0, "Nickel": 19.0, "Potassium": 1400.0, "Selenium": 0.86, "Silver": 0.13, "Sodium": 1000.0, "Thallium": 0.28, "Vanadium": 130.0, "Zinc": 58.0}, "priority": "HIGH", "color": "#d63e2a"}, {"num": 40, "label": "SS40", "lat": 39.007695, "lon": -122.667005, "sampled": true, "metals": {"Aluminum": 10000.0, "Antimony": 34.0, "Arsenic": 20.0, "Barium": 300.0, "Beryllium": 0.18, "Cadmium": 0.34, "Calcium": 1400.0, "Chromium": 45.0, "Cobalt": 4.0, "Copper": 28.0, "Iron": 28000.0, "Lead": 19.0, "Magnesium": 680.0, "Manganese": 280.0, "Mercury": 660.0, "Nickel": 9.9, "Potassium": 1200.0, "Selenium": 0.52, "Silver": 0.53, "Sodium": 1100.0, "Thallium": 0.38, "Vanadium": 48.0, "Zinc": 29.0}, "priority": "HIGH", "color": "#d63e2a"}, {"num": 41, "label": "SS41", "lat": 39.00791, "lon": -122.666428, "sampled": true, "metals": {"Aluminum": 19000.0, "Antimony": 1.1, "Arsenic": 1.5, "Barium": 180.0, "Beryllium": 0.75, "Cadmium": 0.68, "Calcium": 4600.0, "Chromium": 43.0, "Cobalt": 13.0, "Copper": 11.0, "Iron": 17000.0, "Lead": 7.9, "Magnesium": 2300.0, "Manganese": 650.0, "Mercury": 1.8, "Nickel": 22.0, "Potassium": 1100.0, "Selenium": 2.6, "Silver": 0.53, "Sodium": 1100.0, "Thallium": 0.5, "Vanadium": 40.0, "Zinc": 24.0}, "priority": "LOW", "color": "#72af26"}];
+
+var eaSamples = [{"id": "ABWP01-01", "lat": 39.0077465970319, "lon": -122.667500272217, "mercury": 450, "arsenic": 9.5, "antimony": 7.9, "thallium": 0.2, "priority": "HIGH", "color": "#d63e2a", "area": "ABWP01"}, {"id": "ABWP01-02", "lat": 39.0075456088709, "lon": -122.669340150299, "mercury": 990, "arsenic": 45.0, "antimony": 88, "thallium": 0.19, "priority": "HIGH", "color": "#d63e2a", "area": "ABWP01"}, {"id": "ABWP01-03", "lat": 39.0075495799947, "lon": -122.667932476644, "mercury": 21, "arsenic": 2.7, "antimony": 0.91, "thallium": 0.18, "priority": "LOW", "color": "#72af26", "area": "ABWP01"}, {"id": "ABWP01-04", "lat": 39.0071453680858, "lon": -122.667684592255, "mercury": 550, "arsenic": 4.1, "antimony": 3.6, "thallium": 0.18, "priority": "HIGH", "color": "#d63e2a", "area": "ABWP01"}, {"id": "ABWP01-05", "lat": 39.0067396027714, "lon": -122.669896404149, "mercury": 18, "arsenic": 2.1, "antimony": 0.93, "thallium": 0.17, "priority": "LOW", "color": "#72af26", "area": "ABWP01"}, {"id": "ABWP01-06", "lat": 39.0069174799061, "lon": -122.669274695302, "mercury": 1100, "arsenic": 1.4, "antimony": 1.2, "thallium": 0.22, "priority": "HIGH", "color": "#d63e2a", "area": "ABWP01"}, {"id": "ABWP01-07", "lat": 39.0067803811149, "lon": -122.668870411799, "mercury": 560, "arsenic": 0.9, "antimony": 1.1, "thallium": 0.17, "priority": "HIGH", "color": "#d63e2a", "area": "ABWP01"}, {"id": "ABWP01-08", "lat": 39.0068286657774, "lon": -122.668532493722, "mercury": 66, "arsenic": 1.3, "antimony": 0.89, "thallium": 0.14, "priority": "MEDIUM", "color": "#f0932b", "area": "ABWP01"}, {"id": "ABWP01-09", "lat": 39.006538404952, "lon": -122.670171560681, "mercury": 15, "arsenic": 2.2, "antimony": 0.92, "thallium": 0.3, "priority": "LOW", "color": "#72af26", "area": "ABWP01"}, {"id": "ABWP01-10", "lat": 39.0065895547403, "lon": -122.669775496228, "mercury": 42, "arsenic": 5.2, "antimony": 11, "thallium": 0.21, "priority": "MEDIUM", "color": "#f0932b", "area": "ABWP01"}, {"id": "ABWP01-11", "lat": 39.0064832859138, "lon": -122.669224265643, "mercury": 700, "arsenic": 1.7, "antimony": 0.92, "thallium": 0.27, "priority": "HIGH", "color": "#d63e2a", "area": "ABWP01"}, {"id": "ABWP01-12", "lat": 39.0066591809989, "lon": -122.668430402273, "mercury": 67, "arsenic": 0.84, "antimony": 1.4, "thallium": 0.062, "priority": "MEDIUM", "color": "#f0932b", "area": "ABWP01"}, {"id": "ABWP01-13", "lat": 39.0061396268048, "lon": -122.670177754725, "mercury": 18, "arsenic": 1.7, "antimony": 1.1, "thallium": 0.29, "priority": "LOW", "color": "#72af26", "area": "ABWP01"}, {"id": "ABWP01-14", "lat": 39.0062347170494, "lon": -122.669290027868, "mercury": 73, "arsenic": 2.0, "antimony": 0.93, "thallium": 0.19, "priority": "MEDIUM", "color": "#f0932b", "area": "ABWP01"}, {"id": "ABWP01-15", "lat": 39.0062378287727, "lon": -122.669012462979, "mercury": 180, "arsenic": 1.2, "antimony": 1, "thallium": 0.13, "priority": "MEDIUM", "color": "#f0932b", "area": "ABWP01"}, {"id": "ABWP01-16", "lat": 39.0062118225611, "lon": -122.668588508445, "mercury": 79, "arsenic": 0.7, "antimony": 1.2, "thallium": 0.14, "priority": "MEDIUM", "color": "#f0932b", "area": "ABWP01"}, {"id": "ABWP01-17", "lat": 39.0058718408512, "lon": -122.670965598196, "mercury": 13, "arsenic": 1.6, "antimony": 1.1, "thallium": 0.37, "priority": "LOW", "color": "#72af26", "area": "ABWP01"}, {"id": "ABWP01-18", "lat": 39.0059419214144, "lon": -122.670407761354, "mercury": 15, "arsenic": 1.9, "antimony": 1.1, "thallium": 0.21, "priority": "LOW", "color": "#72af26", "area": "ABWP01"}, {"id": "ABWP01-19", "lat": 39.0059954286826, "lon": -122.669340630634, "mercury": 190, "arsenic": 2.5, "antimony": 3.3, "thallium": 0.25, "priority": "MEDIUM", "color": "#f0932b", "area": "ABWP01"}, {"id": "ABWP01-20", "lat": 39.0058541335874, "lon": -122.668695106182, "mercury": 860, "arsenic": 1.6, "antimony": 1.2, "thallium": 0.16, "priority": "HIGH", "color": "#d63e2a", "area": "ABWP01"}, {"id": "ABWP01-21", "lat": 39.0058248250639, "lon": -122.668496175238, "mercury": 250, "arsenic": 0.75, "antimony": 1.7, "thallium": 0.086, "priority": "HIGH", "color": "#d63e2a", "area": "ABWP01"}, {"id": "ABWP01-22", "lat": 39.0055402580581, "lon": -122.671290869564, "mercury": 12, "arsenic": 2.3, "antimony": 1.2, "thallium": 0.2, "priority": "LOW", "color": "#72af26", "area": "ABWP01"}, {"id": "ABWP01-23", "lat": 39.0054243555602, "lon": -122.670547928259, "mercury": 130, "arsenic": 25.0, "antimony": 19, "thallium": 0.069, "priority": "MEDIUM", "color": "#f0932b", "area": "ABWP01"}, {"id": "ABWP01-24", "lat": 39.0055518788096, "lon": -122.670263878377, "mercury": 150, "arsenic": 6.2, "antimony": 7.7, "thallium": 0.15, "priority": "MEDIUM", "color": "#f0932b", "area": "ABWP01"}, {"id": "ABWP01-26", "lat": 39.0055503370111, "lon": -122.66874609639, "mercury": 1900, "arsenic": 1.8, "antimony": 2.4, "thallium": 0.1, "priority": "HIGH", "color": "#d63e2a", "area": "ABWP01"}, {"id": "ABWP01-27", "lat": 39.0051611876408, "lon": -122.668846236967, "mercury": 300, "arsenic": 2.4, "antimony": 2.1, "thallium": 0.13, "priority": "HIGH", "color": "#d63e2a", "area": "ABWP01"}, {"id": "ABWP01-28", "lat": 39.0050616739102, "lon": -122.668059897701, "mercury": 1000, "arsenic": 17.0, "antimony": 28, "thallium": 0.38, "priority": "HIGH", "color": "#d63e2a", "area": "ABWP01"}, {"id": "ABWP01-29", "lat": 39.0049314082585, "lon": -122.668524170383, "mercury": 180, "arsenic": 3.7, "antimony": 1.7, "thallium": 0.22, "priority": "MEDIUM", "color": "#f0932b", "area": "ABWP01"}, {"id": "ABWP01-30", "lat": 39.0046218961845, "lon": -122.668295662275, "mercury": 170, "arsenic": 3.0, "antimony": 1.1, "thallium": 0.23, "priority": "MEDIUM", "color": "#f0932b", "area": "ABWP01"}, {"id": "ABWP02-06", "lat": 39.0077377244773, "lon": -122.666085540427, "mercury": 240, "arsenic": 73.0, "antimony": 150, "thallium": 0.18, "priority": "HIGH", "color": "#d63e2a", "area": "ABWP02"}, {"id": "ABWP02-07", "lat": 39.007861143897, "lon": -122.665725704378, "mercury": 150, "arsenic": 6.0, "antimony": 2.8, "thallium": 0.22, "priority": "MEDIUM", "color": "#f0932b", "area": "ABWP02"}, {"id": "ABWP02-08", "lat": 39.0075612881797, "lon": -122.665515674961, "mercury": 71, "arsenic": 7.3, "antimony": 11, "thallium": 0.22, "priority": "MEDIUM", "color": "#f0932b", "area": "ABWP02"}, {"id": "ABWP02-09", "lat": 39.0072413067667, "lon": -122.665502563968, "mercury": 150, "arsenic": 4.6, "antimony": 1.4, "thallium": 0.13, "priority": "MEDIUM", "color": "#f0932b", "area": "ABWP02"}, {"id": "ABWP02-10", "lat": 39.0070201417899, "lon": -122.665768079405, "mercury": 84, "arsenic": 3.5, "antimony": 1.5, "thallium": 0.17, "priority": "MEDIUM", "color": "#f0932b", "area": "ABWP02"}, {"id": "ABWP02-11", "lat": 39.0066955368688, "lon": -122.66678842294, "mercury": 180, "arsenic": 1.4, "antimony": 1.6, "thallium": 0.11, "priority": "MEDIUM", "color": "#f0932b", "area": "ABWP02"}, {"id": "ABWP02-12", "lat": 39.006756126569, "lon": -122.666573188329, "mercury": 87, "arsenic": 1.7, "antimony": 1.5, "thallium": 0.21, "priority": "MEDIUM", "color": "#f0932b", "area": "ABWP02"}, {"id": "ABWP02-13", "lat": 39.006643297853, "lon": -122.666102913606, "mercury": 61, "arsenic": 1.5, "antimony": 1.1, "thallium": 0.22, "priority": "MEDIUM", "color": "#f0932b", "area": "ABWP02"}, {"id": "ABWP02-14", "lat": 39.0066653925818, "lon": -122.665912932291, "mercury": 470, "arsenic": 2.1, "antimony": 1, "thallium": 0.18, "priority": "HIGH", "color": "#d63e2a", "area": "ABWP02"}, {"id": "ABWP02-15", "lat": 39.0068355740038, "lon": -122.665558947417, "mercury": 36, "arsenic": 2.6, "antimony": 1.1, "thallium": 0.16, "priority": "MEDIUM", "color": "#f0932b", "area": "ABWP02"}, {"id": "ABWP02-16", "lat": 39.0064706825048, "lon": -122.666955937698, "mercury": 1800, "arsenic": 0.39, "antimony": 1, "thallium": 0.42, "priority": "HIGH", "color": "#d63e2a", "area": "ABWP02"}, {"id": "ABWP02-17", "lat": 39.00646213935, "lon": -122.666538142676, "mercury": 120, "arsenic": 0.81, "antimony": 0.39, "thallium": 0.1, "priority": "MEDIUM", "color": "#f0932b", "area": "ABWP02"}, {"id": "ABWP02-18", "lat": 39.0064029036921, "lon": -122.666183457338, "mercury": 700, "arsenic": 0.65, "antimony": 1.7, "thallium": 0.84, "priority": "HIGH", "color": "#d63e2a", "area": "ABWP02"}, {"id": "ABWP02-19", "lat": 39.0064851265372, "lon": -122.665219767343, "mercury": 38, "arsenic": 2.7, "antimony": 1.1, "thallium": 0.12, "priority": "MEDIUM", "color": "#f0932b", "area": "ABWP02"}, {"id": "ABWP02-20", "lat": 39.0061432832195, "lon": -122.665790707727, "mercury": 280, "arsenic": 1.1, "antimony": 0.53, "thallium": 0.18, "priority": "HIGH", "color": "#d63e2a", "area": "ABWP02"}, {"id": "ABWP02-21", "lat": 39.0062087938604, "lon": -122.665368221157, "mercury": 35, "arsenic": 1.9, "antimony": 1.1, "thallium": 0.11, "priority": "LOW", "color": "#72af26", "area": "ABWP02"}, {"id": "ABWP02-22", "lat": 39.0059501904703, "lon": -122.666054193426, "mercury": 830, "arsenic": 1.5, "antimony": 1.3, "thallium": 0.13, "priority": "HIGH", "color": "#d63e2a", "area": "ABWP02"}, {"id": "ABWP02-23", "lat": 39.00605032714, "lon": -122.665907204376, "mercury": 390, "arsenic": 1.5, "antimony": 1.1, "thallium": 0.16, "priority": "HIGH", "color": "#d63e2a", "area": "ABWP02"}, {"id": "ABWP02-24", "lat": 39.0059621193256, "lon": -122.6654042948, "mercury": 60, "arsenic": 2.0, "antimony": 1.1, "thallium": 0.2, "priority": "MEDIUM", "color": "#f0932b", "area": "ABWP02"}, {"id": "ABWP02-25", "lat": 39.0056157306986, "lon": -122.666677766283, "mercury": 820, "arsenic": 0.67, "antimony": 1.1, "thallium": 0.041, "priority": "HIGH", "color": "#d63e2a", "area": "ABWP02"}, {"id": "ABWP02-26", "lat": 39.0057140087177, "lon": -122.666256815418, "mercury": 2700, "arsenic": 3.7, "antimony": 4.5, "thallium": 0.046, "priority": "HIGH", "color": "#d63e2a", "area": "ABWP02"}, {"id": "ABWP02-27", "lat": 39.0053815765848, "lon": -122.666257040122, "mercury": 290, "arsenic": 1.7, "antimony": 0.72, "thallium": 0.14, "priority": "HIGH", "color": "#d63e2a", "area": "ABWP02"}, {"id": "ABWP02-28", "lat": 39.0054541287926, "lon": -122.665326232546, "mercury": 94, "arsenic": 1.7, "antimony": 0.71, "thallium": 0.15, "priority": "MEDIUM", "color": "#f0932b", "area": "ABWP02"}, {"id": "ABWP02-29", "lat": 39.0051410522782, "lon": -122.666306292323, "mercury": 180, "arsenic": 1.7, "antimony": 0.7, "thallium": 0.13, "priority": "MEDIUM", "color": "#f0932b", "area": "ABWP02"}, {"id": "ABWP02-30", "lat": 39.0051985431479, "lon": -122.665462531262, "mercury": 85, "arsenic": 1.5, "antimony": 1.3, "thallium": 0.12, "priority": "MEDIUM", "color": "#f0932b", "area": "ABWP02"}];
+
+var testpits = [{"id": "ABWP02-01-TP1", "lat": 39.00749, "lon": -122.66675, "depth": 4, "ph": "5.38-5.51", "notes": "Andesite contact at 0.5 ft"}, {"id": "ABWP02-02-TP1", "lat": 39.00755, "lon": -122.66541, "depth": 4, "ph": "4.76-4.81", "notes": "Lots of rock/boulders"}, {"id": "ABWP02-03-TP1", "lat": 39.00642, "lon": -122.66579, "depth": 4, "ph": "5.42-5.61", "notes": "Andesite contact 0.25-0.5 ft"}, {"id": "ABWP02-04-TP1", "lat": 39.00594, "lon": -122.66631, "depth": 4, "ph": "3.86-4.35", "notes": "Most acidic - possible waste rock"}, {"id": "ABWP02-05-TP1", "lat": 39.00571, "lon": -122.66558, "depth": 4, "ph": "4.99-5.06", "notes": "Sulfur smell at 4ft"}];
+
+var plannedPoints = [];
+
+// ROD thresholds (2023 ROD Table 2-3, On-Mine Soils)
+var thresholds = {
+    Mercury:  { low: 35, high: 204 },
+    Arsenic:  { low: 6.1, high: 6.1 },
+    Antimony: { low: 7.1, high: 51 },
+    Thallium: { low: 1.3, high: 1.3 }
+};
+
+// ===== STATE =====
+var map, myLocMarker, myAccCircle, watchId = null;
+var myLat = null, myLon = null, myHeading = null;
+var navTarget = null; // current navigation target
+var currentAnalyte = 'Mercury';
+var currentFilter = 'all';
+var currentSort = 'distance';
+var settings = {
+    autoCenter: true,
+    showJacobs: true,
+    showEA: true,
+    showTestPits: true,
+    showPlanned: true
+};
+
+// Layer groups
+var jacobsLayer, eaLayer, testPitLayer, plannedLayer;
+
+// All points unified
+var allPoints = [];
+
+// ===== INIT =====
+document.addEventListener('DOMContentLoaded', function() {
+    initMap();
+    buildAllPoints();
+    addMarkersToMap();
+    startGPS();
+    renderList();
+});
+
+function initMap() {
+    var allLats = samples2025.map(s => s.lat).concat(eaSamples.map(e => e.lat));
+    var allLons = samples2025.map(s => s.lon).concat(eaSamples.map(e => e.lon));
+    var cLat = allLats.reduce((a,b) => a+b) / allLats.length;
+    var cLon = allLons.reduce((a,b) => a+b) / allLons.length;
+
+    map = L.map('map', {
+        zoomControl: false,
+        attributionControl: true
+    }).setView([cLat, cLon], 17);
+
+    L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
+        attribution: '© Google',
+        maxZoom: 22
+    }).addTo(map);
+
+    // Create layer groups
+    jacobsLayer = L.layerGroup().addTo(map);
+    eaLayer = L.layerGroup().addTo(map);
+    testPitLayer = L.layerGroup().addTo(map);
+    plannedLayer = L.layerGroup().addTo(map);
+
+    // Tap on map to dismiss panels
+    map.on('click', function() {
+        closeAllPanels();
+    });
+}
+
+function buildAllPoints() {
+    allPoints = [];
+    samples2025.forEach(function(s) {
+        var analVal = s.sampled ? (s.metals[currentAnalyte] || 0) : null;
+        var pri = getPriority(analVal, currentAnalyte);
+        allPoints.push({
+            id: s.label,
+            type: 'jacobs',
+            typeLabel: 'Jacobs 2025',
+            lat: s.lat,
+            lon: s.lon,
+            sampled: s.sampled,
+            priority: pri,
+            color: getPriorityColor(pri),
+            metals: s.metals || {},
+            data: s
+        });
+    });
+    eaSamples.forEach(function(s) {
+        var analVal = s[currentAnalyte.toLowerCase()] || 0;
+        var pri = getPriority(analVal, currentAnalyte);
+        allPoints.push({
+            id: s.id,
+            type: 'ea',
+            typeLabel: 'EA Historical',
+            lat: s.lat,
+            lon: s.lon,
+            sampled: true,
+            priority: pri,
+            color: getPriorityColor(pri),
+            metals: { Mercury: s.mercury, Arsenic: s.arsenic, Antimony: s.antimony, Thallium: s.thallium },
+            data: s
+        });
+    });
+    testpits.forEach(function(s) {
+        allPoints.push({
+            id: s.id,
+            type: 'testpit',
+            typeLabel: 'EA Test Pit',
+            lat: s.lat,
+            lon: s.lon,
+            sampled: true,
+            priority: 'TP',
+            color: '#9b59b6',
+            metals: {},
+            data: s
+        });
+    });
+    plannedPoints.forEach(function(s) {
+        allPoints.push({
+            id: s.id,
+            type: 'planned',
+            typeLabel: s.ptype || 'Planned',
+            lat: s.lat,
+            lon: s.lon,
+            sampled: false,
+            priority: 'PLANNED',
+            color: s.ptype === 'Step-out' ? '#ff6b00' : '#00bfff',
+            metals: {},
+            data: s
+        });
+    });
+}
+
+function getPriority(val, analyte) {
+    if (val === null || val === undefined) return 'NOT_SAMPLED';
+    var t = thresholds[analyte];
+    if (val > t.high) return 'HIGH';
+    if (val > t.low) return 'MEDIUM';
+    return 'LOW';
+}
+
+function getPriorityColor(pri) {
+    return { HIGH: '#d63e2a', MEDIUM: '#f0a030', LOW: '#72af26', NOT_SAMPLED: '#999', TP: '#9b59b6', PLANNED: '#00bfff' }[pri] || '#999';
+}
+
+// ===== MARKERS =====
+function addMarkersToMap() {
+    jacobsLayer.clearLayers();
+    eaLayer.clearLayers();
+    testPitLayer.clearLayers();
+    plannedLayer.clearLayers();
+
+    allPoints.forEach(function(pt) {
+        var marker;
+        if (pt.type === 'jacobs') {
+            marker = L.circleMarker([pt.lat, pt.lon], {
+                radius: 8, fillColor: pt.color, color: '#fff', weight: 2,
+                fillOpacity: 0.9
+            });
+            marker.bindTooltip(pt.id, { permanent: false, direction: 'top', className: '' });
+            jacobsLayer.addLayer(marker);
+        } else if (pt.type === 'ea') {
+            // Triangle via divIcon
+            marker = L.marker([pt.lat, pt.lon], {
+                icon: L.divIcon({
+                    className: '',
+                    html: '<div style="width:0;height:0;border-left:8px solid transparent;border-right:8px solid transparent;border-bottom:14px solid ' + pt.color + ';filter:drop-shadow(0 0 1px #000);"></div>',
+                    iconSize: [16, 14], iconAnchor: [8, 14]
+                })
+            });
+            marker.bindTooltip(pt.id, { permanent: false, direction: 'top' });
+            eaLayer.addLayer(marker);
+        } else if (pt.type === 'testpit') {
+            marker = L.marker([pt.lat, pt.lon], {
+                icon: L.divIcon({
+                    className: '',
+                    html: '<div style="width:14px;height:14px;background:#9b59b6;border:2px solid #fff;box-shadow:0 0 3px #000;"></div>',
+                    iconSize: [14, 14], iconAnchor: [7, 7]
+                })
+            });
+            marker.bindTooltip(pt.id, { permanent: false, direction: 'top' });
+            testPitLayer.addLayer(marker);
+        } else if (pt.type === 'planned') {
+            // Diamond
+            var c = pt.color;
+            marker = L.marker([pt.lat, pt.lon], {
+                icon: L.divIcon({
+                    className: '',
+                    html: '<div style="width:14px;height:14px;background:' + c + ';transform:rotate(45deg);border:2px solid #fff;box-shadow:0 0 3px #000;"></div>',
+                    iconSize: [14, 14], iconAnchor: [7, 7]
+                })
+            });
+            marker.bindTooltip(pt.id, { permanent: false, direction: 'top' });
+            plannedLayer.addLayer(marker);
+        }
+        if (marker) {
+            marker._ptData = pt;
+            marker.on('click', function(e) {
+                L.DomEvent.stopPropagation(e);
+                showDetail(pt);
+            });
+        }
+    });
+}
+
+// ===== GPS =====
+function startGPS() {
+    if (!navigator.geolocation) {
+        document.getElementById('gpsText').textContent = 'No GPS';
+        return;
+    }
+    document.getElementById('gpsDot').className = 'gps-dot searching';
+    document.getElementById('gpsText').textContent = 'Searching...';
+
+    watchId = navigator.geolocation.watchPosition(
+        function(pos) {
+            myLat = pos.coords.latitude;
+            myLon = pos.coords.longitude;
+            var acc = pos.coords.accuracy;
+            if (pos.coords.heading && !isNaN(pos.coords.heading)) myHeading = pos.coords.heading;
+
+            document.getElementById('gpsDot').className = 'gps-dot active';
+            document.getElementById('gpsText').textContent = acc < 10 ? acc.toFixed(0) + 'm' : '~' + acc.toFixed(0) + 'm';
+
+            updateMyLocation(acc);
+            if (navTarget) updateNavigation();
+        },
+        function(err) {
+            document.getElementById('gpsDot').className = 'gps-dot';
+            document.getElementById('gpsText').textContent = 'GPS Error';
+        },
+        { enableHighAccuracy: true, maximumAge: 3000, timeout: 15000 }
+    );
+
+    // Also listen for device orientation (compass heading)
+    if (window.DeviceOrientationEvent) {
+        window.addEventListener('deviceorientation', function(e) {
+            if (e.webkitCompassHeading) {
+                myHeading = e.webkitCompassHeading;
+            } else if (e.alpha) {
+                myHeading = 360 - e.alpha;
+            }
+            if (navTarget) updateNavigation();
+        });
+    }
+}
+
+function updateMyLocation(accuracy) {
+    if (!myLocMarker) {
+        var myIcon = L.divIcon({
+            className: '',
+            html: '<div style="position:relative;"><div class="my-location"></div><div class="my-location-ring"></div></div>',
+            iconSize: [18, 18], iconAnchor: [9, 9]
+        });
+        myLocMarker = L.marker([myLat, myLon], { icon: myIcon, zIndexOffset: 9999 }).addTo(map);
+        myAccCircle = L.circle([myLat, myLon], { radius: accuracy, color: '#4285F4', fillColor: '#4285F4', fillOpacity: 0.1, weight: 1 }).addTo(map);
+        if (settings.autoCenter) map.setView([myLat, myLon], 18);
+    } else {
+        myLocMarker.setLatLng([myLat, myLon]);
+        myAccCircle.setLatLng([myLat, myLon]);
+        myAccCircle.setRadius(accuracy);
+        if (settings.autoCenter && !navTarget) map.panTo([myLat, myLon]);
+    }
+}
+
+function centerOnMe() {
+    if (myLat !== null) {
+        map.setView([myLat, myLon], 19);
+    } else {
+        alert('GPS position not yet available');
+    }
+}
+
+// ===== NAVIGATION =====
+function navigateTo(pt) {
+    navTarget = pt;
+    document.getElementById('navPanel').classList.add('active');
+    document.getElementById('navName').textContent = pt.id;
+    document.getElementById('navType').innerHTML = pt.typeLabel +
+        (pt.priority && pt.priority !== 'TP' && pt.priority !== 'PLANNED' ?
+            ' <span class="nav-priority ' + pt.priority + '">' + pt.priority + '</span>' : '');
+    map.setView([pt.lat, pt.lon], 18);
+    updateNavigation();
+    closeAllPanels();
+    document.getElementById('navPanel').classList.add('active');
+}
+
+function updateNavigation() {
+    if (!navTarget || myLat === null) return;
+    var d = haversineDistance(myLat, myLon, navTarget.lat, navTarget.lon);
+    var dFt = d * 3.28084;
+    var bearing = calcBearing(myLat, myLon, navTarget.lat, navTarget.lon);
+
+    document.getElementById('navDist').textContent = dFt < 100 ? dFt.toFixed(0) : Math.round(dFt);
+    document.getElementById('navBearing').textContent = bearing.toFixed(0) + '°';
+
+    // Walking ETA at 3 mph
+    var minWalk = (d / 1000) / (4.8 / 60);
+    document.getElementById('navETA').textContent = minWalk < 1 ? '<1 min' : Math.round(minWalk) + ' min';
+
+    // Compass arrow: bearing relative to device heading
+    var arrowAngle = bearing - (myHeading || 0);
+    document.getElementById('compassArrow').style.transform = 'rotate(' + arrowAngle + 'deg)';
+
+    // If within 5 meters, vibrate
+    if (d < 5 && navigator.vibrate) navigator.vibrate(200);
+}
+
+document.getElementById('navClose').addEventListener('click', function() {
+    navTarget = null;
+    document.getElementById('navPanel').classList.remove('active');
+});
+
+// ===== SAMPLE LIST =====
+function renderList() {
+    var listEl = document.getElementById('sampleList');
+    var pts = allPoints.filter(function(pt) {
+        if (currentFilter === 'all') return true;
+        if (currentFilter === 'jacobs') return pt.type === 'jacobs';
+        if (currentFilter === 'ea') return pt.type === 'ea';
+        if (currentFilter === 'testpit') return pt.type === 'testpit';
+        if (currentFilter === 'planned') return pt.type === 'planned';
+        if (currentFilter === 'high') return pt.priority === 'HIGH';
+        return true;
+    });
+
+    var search = document.getElementById('listSearch').value.toLowerCase();
+    if (search) {
+        pts = pts.filter(function(pt) { return pt.id.toLowerCase().indexOf(search) >= 0; });
+    }
+
+    // Add distance
+    pts.forEach(function(pt) {
+        pt._dist = (myLat !== null) ? haversineDistance(myLat, myLon, pt.lat, pt.lon) : 99999;
+    });
+
+    // Sort
+    if (currentSort === 'distance') {
+        pts.sort(function(a,b) { return a._dist - b._dist; });
+    } else if (currentSort === 'name') {
+        pts.sort(function(a,b) { return a.id.localeCompare(b.id, undefined, {numeric:true}); });
+    } else if (currentSort === 'priority') {
+        var pOrder = { HIGH: 0, MEDIUM: 1, LOW: 2, NOT_SAMPLED: 3, TP: 4, PLANNED: 5 };
+        pts.sort(function(a,b) { return (pOrder[a.priority]||9) - (pOrder[b.priority]||9); });
+    }
+
+    document.getElementById('listTitle').textContent = pts.length + ' Samples';
+
+    var html = '';
+    pts.forEach(function(pt) {
+        var distText = '';
+        if (myLat !== null) {
+            var dFt = pt._dist * 3.28084;
+            distText = dFt < 1000 ? Math.round(dFt) + ' <span class="unit">ft</span>' :
+                       (dFt / 5280).toFixed(2) + ' <span class="unit">mi</span>';
+        }
+        html += '<div class="sample-item" onclick="showDetail(getPointById(\''+pt.id+'\',\''+pt.type+'\'))">' +
+            '<div class="sample-icon" style="background:' + pt.color + ';">' + pt.id.substring(0,3) + '</div>' +
+            '<div class="sample-info"><div class="name">' + pt.id + '</div>' +
+            '<div class="detail">' + pt.typeLabel + (pt.priority && pt.priority !== 'TP' && pt.priority !== 'PLANNED' ? ' | ' + pt.priority : '') + '</div></div>' +
+            '<div class="sample-dist">' + distText + '</div></div>';
+    });
+    listEl.innerHTML = html || '<div style="text-align:center;padding:20px;color:#666;">No samples match</div>';
+}
+
+function getPointById(id, type) {
+    return allPoints.find(function(p) { return p.id === id && p.type === type; });
+}
+
+// Search handler
+document.getElementById('listSearch').addEventListener('input', function() { renderList(); });
+
+// Filter chips
+document.getElementById('listFilters').addEventListener('click', function(e) {
+    if (e.target.classList.contains('filter-chip')) {
+        document.querySelectorAll('.filter-chip').forEach(function(c) { c.classList.remove('active'); });
+        e.target.classList.add('active');
+        currentFilter = e.target.dataset.filter;
+        renderList();
+    }
+});
+
+// Sort chips
+document.querySelectorAll('.sort-chip').forEach(function(chip) {
+    chip.addEventListener('click', function() {
+        document.querySelectorAll('.sort-chip').forEach(function(c) { c.classList.remove('active'); });
+        chip.classList.add('active');
+        currentSort = chip.dataset.sort;
+        renderList();
+    });
+});
+
+// ===== DETAIL PANEL =====
+function showDetail(pt) {
+    if (!pt) return;
+    closeAllPanels();
+    var panel = document.getElementById('detailPanel');
+    panel.classList.add('active');
+
+    var html = '<h2>' + pt.id + '</h2>';
+    html += '<div class="type-badge">' + pt.typeLabel + '</div>';
+    html += '<div class="detail-coords">' + pt.lat.toFixed(6) + ', ' + pt.lon.toFixed(6) + '</div>';
+
+    if (myLat !== null) {
+        var d = haversineDistance(myLat, myLon, pt.lat, pt.lon);
+        var dFt = d * 3.28084;
+        html += '<div style="color:#00ff00;font-size:14px;font-weight:700;margin-bottom:8px;">' +
+                (dFt < 1000 ? Math.round(dFt) + ' ft away' : (dFt/5280).toFixed(2) + ' mi away') + '</div>';
+    }
+
+    // Test pit info
+    if (pt.type === 'testpit') {
+        var tp = pt.data;
+        html += '<div style="margin:8px 0;font-size:12px;">';
+        html += '<div><strong>Depth:</strong> ' + (tp.depth || '--') + '</div>';
+        html += '<div><strong>pH:</strong> ' + (tp.ph || '--') + '</div>';
+        html += '<div><strong>Notes:</strong> ' + (tp.notes || '--') + '</div>';
+        html += '</div>';
+    }
+
+    // Planned point info
+    if (pt.type === 'planned') {
+        var pp = pt.data;
+        html += '<div style="margin:8px 0;font-size:12px;">';
+        if (pp.depth) html += '<div><strong>Depth:</strong> ' + pp.depth + '</div>';
+        if (pp.note) html += '<div><strong>Note:</strong> ' + pp.note + '</div>';
+        html += '</div>';
+    }
+
+    // Metals table for sampled points
+    if (pt.sampled && pt.metals && Object.keys(pt.metals).length > 0) {
+        var cocs = ['Mercury', 'Arsenic', 'Antimony', 'Thallium'];
+        html += '<table class="result-table"><tr><th>Analyte</th><th>Result (mg/kg)</th><th>ROD</th><th>Status</th></tr>';
+        cocs.forEach(function(coc) {
+            var val = pt.metals[coc];
+            var rod = thresholds[coc].high;
+            var exceed = val !== null && val !== undefined && val > rod;
+            var cls = exceed ? 'exceed' : 'below';
+            html += '<tr><td>' + coc + '</td><td class="' + cls + '">' + (val !== null && val !== undefined ? val : '--') +
+                    '</td><td>' + rod + '</td><td class="' + cls + '">' + (exceed ? 'EXCEED' : 'OK') + '</td></tr>';
+        });
+
+        // Show all other metals for Jacobs samples
+        if (pt.type === 'jacobs' && pt.data.metals) {
+            var otherMetals = Object.keys(pt.data.metals).filter(function(k) { return cocs.indexOf(k) < 0; }).sort();
+            if (otherMetals.length > 0) {
+                html += '<tr><td colspan="4" style="background:#222;color:#888;font-size:10px;padding:4px;">Other Metals</td></tr>';
+                otherMetals.forEach(function(m) {
+                    html += '<tr><td>' + m + '</td><td>' + pt.data.metals[m] + '</td><td>--</td><td>--</td></tr>';
+                });
+            }
+        }
+        html += '</table>';
+    }
+
+    html += '<div class="detail-actions">';
+    html += '<button class="btn-navigate" onclick="navigateTo(getPointById(\''+pt.id+'\',\''+pt.type+'\'))">Navigate Here</button>';
+    html += '<button class="btn-close-detail" onclick="closeAllPanels()">Close</button>';
+    html += '</div>';
+
+    document.getElementById('detailContent').innerHTML = html;
+
+    // Center map
+    map.setView([pt.lat, pt.lon], 18);
+}
+
+// ===== TABS =====
+function showTab(tab) {
+    closeAllPanels();
+    document.querySelectorAll('.bottom-btn').forEach(function(b) { b.classList.remove('active'); });
+
+    if (tab === 'list') {
+        document.getElementById('listPanel').classList.add('active');
+        document.getElementById('btnList').classList.add('active');
+        renderList();
+    } else if (tab === 'settings') {
+        document.getElementById('settingsPanel').classList.add('active');
+        document.getElementById('btnSettings').classList.add('active');
+    } else {
+        document.getElementById('btnMap').classList.add('active');
+    }
+}
+
+function closeAllPanels() {
+    document.getElementById('listPanel').classList.remove('active');
+    document.getElementById('detailPanel').classList.remove('active');
+    document.getElementById('settingsPanel').classList.remove('active');
+}
+
+// ===== SETTINGS =====
+function toggleSetting(key) {
+    settings[key] = !settings[key];
+    var btn = document.getElementById('toggle' + key.charAt(0).toUpperCase() + key.slice(1));
+    if (!btn) {
+        // Try camelCase mapping
+        var mapping = { showJacobs: 'toggleJacobs', showEA: 'toggleEA', showTestPits: 'toggleTestPits', showPlanned: 'togglePlanned', autoCenter: 'toggleAutoCenter' };
+        btn = document.getElementById(mapping[key]);
+    }
+    if (btn) btn.classList.toggle('on', settings[key]);
+
+    // Toggle layers
+    if (key === 'showJacobs') { settings[key] ? map.addLayer(jacobsLayer) : map.removeLayer(jacobsLayer); }
+    if (key === 'showEA') { settings[key] ? map.addLayer(eaLayer) : map.removeLayer(eaLayer); }
+    if (key === 'showTestPits') { settings[key] ? map.addLayer(testPitLayer) : map.removeLayer(testPitLayer); }
+    if (key === 'showPlanned') { settings[key] ? map.addLayer(plannedLayer) : map.removeLayer(plannedLayer); }
+}
+
+function changeAnalyte(val) {
+    currentAnalyte = val;
+    buildAllPoints();
+    addMarkersToMap();
+    renderList();
+}
+
+// ===== LOAD CSV =====
+function loadCSV(event) {
+    var file = event.target.files[0];
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function(e) {
+        var lines = e.target.result.split('\n');
+        var header = lines[0].split(',').map(function(h) { return h.trim().replace(/"/g, ''); });
+        var latIdx = header.findIndex(function(h) { return h.toLowerCase().indexOf('lat') >= 0; });
+        var lonIdx = header.findIndex(function(h) { return h.toLowerCase().indexOf('lon') >= 0; });
+        var idIdx = header.findIndex(function(h) { return h.toLowerCase() === 'point_id' || h.toLowerCase() === 'id' || h.toLowerCase() === 'name'; });
+        var typeIdx = header.findIndex(function(h) { return h.toLowerCase() === 'type'; });
+        var depthIdx = header.findIndex(function(h) { return h.toLowerCase() === 'depth'; });
+        var noteIdx = header.findIndex(function(h) { return h.toLowerCase() === 'note' || h.toLowerCase() === 'notes'; });
+
+        if (latIdx < 0 || lonIdx < 0) { alert('CSV must have Latitude and Longitude columns'); return; }
+
+        plannedPoints = [];
+        for (var i = 1; i < lines.length; i++) {
+            var cols = lines[i].split(',').map(function(c) { return c.trim().replace(/"/g, ''); });
+            var lat = parseFloat(cols[latIdx]);
+            var lon = parseFloat(cols[lonIdx]);
+            if (isNaN(lat) || isNaN(lon)) continue;
+            plannedPoints.push({
+                id: idIdx >= 0 ? cols[idIdx] : 'P-' + (i),
+                ptype: typeIdx >= 0 ? cols[typeIdx] : 'Planned',
+                lat: lat, lon: lon,
+                depth: depthIdx >= 0 ? cols[depthIdx] : '',
+                note: noteIdx >= 0 ? cols[noteIdx] : ''
+            });
+        }
+
+        buildAllPoints();
+        addMarkersToMap();
+        renderList();
+        alert('Loaded ' + plannedPoints.length + ' planned points');
+    };
+    reader.readAsText(file);
+    event.target.value = '';
+}
+
+// ===== UTILITIES =====
+function haversineDistance(lat1, lon1, lat2, lon2) {
+    var R = 6371000;
+    var dLat = (lat2 - lat1) * Math.PI / 180;
+    var dLon = (lon2 - lon1) * Math.PI / 180;
+    var a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+            Math.cos(lat1 * Math.PI/180) * Math.cos(lat2 * Math.PI/180) *
+            Math.sin(dLon/2) * Math.sin(dLon/2);
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+function calcBearing(lat1, lon1, lat2, lon2) {
+    var dLon = (lon2 - lon1) * Math.PI / 180;
+    var y = Math.sin(dLon) * Math.cos(lat2 * Math.PI / 180);
+    var x = Math.cos(lat1 * Math.PI/180) * Math.sin(lat2 * Math.PI/180) -
+            Math.sin(lat1 * Math.PI/180) * Math.cos(lat2 * Math.PI/180) * Math.cos(dLon);
+    var b = Math.atan2(y, x) * 180 / Math.PI;
+    return (b + 360) % 360;
+}
+
+// Refresh list every 5 seconds for distance updates
+setInterval(function() {
+    if (document.getElementById('listPanel').classList.contains('active')) {
+        renderList();
+    }
+}, 5000);
+</script>
+</body>
+</html>
