@@ -4,1145 +4,960 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="theme-color" content="#0a0a0a">
+<meta name="mobile-web-app-capable" content="yes">
 <title>SBMM Field Navigator</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-:root {
-  --bg: #0a0a0a;
-  --surface: #141414;
-  --surface2: #1e1e1e;
-  --border: #2a2a2a;
-  --text: #e8e8e8;
-  --text-dim: #888;
-  --accent: #00e676;
-  --accent-dim: #00e67640;
-  --warn: #ff9100;
-  --danger: #ff1744;
-  --proposed: #448aff;
-  --stepout: #ff9100;
-  --visited: #00e676;
-  --mono: 'JetBrains Mono', monospace;
-  --sans: 'IBM Plex Sans', sans-serif;
-  --safe-bottom: env(safe-area-inset-bottom, 0px);
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --primary:#1a73e8;--primary-dark:#1557b0;--success:#0d9488;--warning:#f59e0b;
+  --danger:#ef4444;--bg:#0f172a;--surface:#1e293b;--surface2:#334155;
+  --text:#f1f5f9;--text-dim:#94a3b8;--border:#475569;
+  --proposed:#6366f1;--stepout:#f59e0b;--visited-color:#10b981;
 }
+html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text)}
+#app{height:100%;display:flex;flex-direction:column}
 
-* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-html, body { 
-  height:100%; width:100%; overflow:hidden; 
-  font-family:var(--sans); background:var(--bg); color:var(--text);
-  touch-action:manipulation;
-}
+/* Header */
+.header{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:var(--surface);border-bottom:1px solid var(--border);z-index:1000;min-height:48px}
+.header-left{display:flex;align-items:center;gap:8px}
+.header-title{font-size:14px;font-weight:700;letter-spacing:0.5px}
+.gps-indicator{display:flex;align-items:center;gap:4px;font-size:11px;padding:3px 8px;border-radius:12px;background:var(--surface2)}
+.gps-dot{width:8px;height:8px;border-radius:50%;background:#ef4444}
+.gps-dot.active{background:#10b981;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}
+.progress-badge{font-size:11px;padding:3px 8px;border-radius:12px;background:var(--surface2);font-weight:600}
 
-/* ===== TOP STATUS BAR ===== */
-#topbar {
-  position:fixed; top:0; left:0; right:0; z-index:1000;
-  background:var(--bg); border-bottom:1px solid var(--border);
-  padding:8px 12px; display:flex; align-items:center; gap:8px;
-  font-family:var(--mono); font-size:11px;
-  height:44px;
-}
-#topbar .logo { 
-  font-weight:800; font-size:13px; letter-spacing:1px; 
-  color:var(--accent); text-transform:uppercase;
-}
-#topbar .gps-status { 
-  display:flex; align-items:center; gap:4px; margin-left:auto;
-}
-#topbar .gps-bars { display:flex; gap:1px; align-items:flex-end; }
-#topbar .gps-bar { width:3px; background:var(--text-dim); border-radius:1px; }
-#topbar .gps-bar.active { background:var(--accent); }
-#topbar .progress-badge {
-  background:var(--surface2); padding:2px 8px; border-radius:10px;
-  font-size:10px; color:var(--accent); border:1px solid var(--border);
-}
+/* Navigation HUD */
+.nav-hud{background:linear-gradient(180deg,var(--surface) 0%,var(--bg) 100%);padding:12px;text-align:center;border-bottom:1px solid var(--border);position:relative;min-height:120px;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.nav-hud.hidden{display:none}
+.compass-container{position:relative;width:80px;height:80px;margin:0 auto 6px}
+.compass-ring{width:80px;height:80px;border:2px solid var(--border);border-radius:50%;position:relative}
+.compass-n{position:absolute;top:-8px;left:50%;transform:translateX(-50%);font-size:10px;font-weight:700;color:var(--danger)}
+.compass-arrow{position:absolute;top:50%;left:50%;width:0;height:0;transform-origin:center center;border-left:8px solid transparent;border-right:8px solid transparent;border-bottom:40px solid var(--primary);transform:translate(-50%,-80%) rotate(0deg);transition:transform 0.3s ease}
+.nav-target-name{font-size:18px;font-weight:700;color:var(--primary);margin-bottom:2px}
+.nav-distance{font-size:28px;font-weight:800;letter-spacing:-1px}
+.nav-distance.far{color:var(--danger)}.nav-distance.medium{color:var(--warning)}.nav-distance.close{color:var(--success)}
+.nav-bearing{font-size:12px;color:var(--text-dim);margin-top:2px}
+.nav-eta{font-size:11px;color:var(--text-dim)}
+.no-target-msg{color:var(--text-dim);font-size:14px}
 
-/* ===== COMPASS HUD ===== */
-#compass-hud {
-  position:fixed; top:44px; left:0; right:0; z-index:900;
-  background:linear-gradient(180deg, var(--bg) 0%, transparent 100%);
-  padding:12px 16px 24px; text-align:center;
-  display:none; /* shown when target selected */
-}
-#compass-hud.active { display:block; }
-#compass-hud .target-name {
-  font-family:var(--mono); font-size:12px; color:var(--text-dim);
-  letter-spacing:2px; text-transform:uppercase; margin-bottom:4px;
-}
-#compass-hud .compass-ring {
-  width:120px; height:120px; margin:0 auto;
-  position:relative;
-}
-#compass-hud .compass-arrow {
-  position:absolute; top:50%; left:50%;
-  transform:translate(-50%,-50%) rotate(0deg);
-  transition:transform 0.3s ease-out;
-}
-#compass-hud .compass-arrow svg { width:80px; height:80px; }
-#compass-hud .distance-display {
-  font-family:var(--mono); font-size:36px; font-weight:800;
-  color:var(--text); line-height:1; margin-top:4px;
-}
-#compass-hud .distance-unit {
-  font-size:14px; font-weight:500; color:var(--text-dim);
-}
-#compass-hud .bearing-text {
-  font-family:var(--mono); font-size:12px; color:var(--text-dim);
-  margin-top:2px;
-}
-#compass-hud .eta-text {
-  font-size:11px; color:var(--text-dim); margin-top:2px;
-}
+/* Map */
+.map-container{flex:1;position:relative}
+#map{width:100%;height:100%;z-index:1}
+.map-controls{position:absolute;top:10px;right:10px;z-index:1000;display:flex;flex-direction:column;gap:6px}
+.map-btn{width:40px;height:40px;border-radius:8px;background:var(--surface);border:1px solid var(--border);color:var(--text);font-size:18px;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,0.3)}
+.map-btn.active{background:var(--primary);border-color:var(--primary)}
+.layer-panel{position:absolute;top:10px;left:10px;z-index:1000;background:var(--surface);border-radius:10px;border:1px solid var(--border);padding:10px;display:none;box-shadow:0 4px 16px rgba(0,0,0,0.4);max-width:220px}
+.layer-panel.show{display:block}
+.layer-panel h4{font-size:12px;color:var(--text-dim);margin-bottom:6px;text-transform:uppercase;letter-spacing:1px}
+.layer-row{display:flex;align-items:center;gap:8px;padding:4px 0;font-size:13px}
+.layer-row input[type=checkbox]{accent-color:var(--primary)}
+.layer-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
 
-/* Distance color coding */
-.dist-far { color:var(--danger) !important; }
-.dist-mid { color:var(--warn) !important; }
-.dist-near { color:var(--accent) !important; }
+/* Bottom Sheet */
+.bottom-sheet{background:var(--surface);border-top:1px solid var(--border);border-radius:16px 16px 0 0;max-height:45vh;display:flex;flex-direction:column;transition:max-height 0.3s ease;z-index:999}
+.bottom-sheet.collapsed{max-height:48px}
+.bottom-sheet.expanded{max-height:65vh}
+.sheet-handle{text-align:center;padding:8px;cursor:pointer;flex-shrink:0}
+.sheet-handle-bar{width:36px;height:4px;background:var(--border);border-radius:2px;margin:0 auto}
+.sheet-header{display:flex;align-items:center;justify-content:space-between;padding:0 12px 8px;flex-shrink:0}
+.sheet-title{font-size:13px;font-weight:600;color:var(--text-dim)}
+.sheet-filter{display:flex;gap:4px}
+.filter-btn{padding:3px 10px;border-radius:12px;border:1px solid var(--border);background:transparent;color:var(--text-dim);font-size:11px;cursor:pointer}
+.filter-btn.active{background:var(--primary);border-color:var(--primary);color:white}
+.point-list{overflow-y:auto;flex:1;-webkit-overflow-scrolling:touch}
+.point-item{display:flex;align-items:center;padding:10px 12px;border-bottom:1px solid rgba(71,85,105,0.3);cursor:pointer;transition:background 0.15s}
+.point-item:active,.point-item.selected{background:rgba(26,115,232,0.15)}
+.point-type-dot{width:12px;height:12px;border-radius:50%;flex-shrink:0;margin-right:10px}
+.point-type-dot.proposed{background:var(--proposed)}.point-type-dot.stepout{background:var(--stepout)}
+.point-info{flex:1;min-width:0}
+.point-id{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.point-meta{font-size:11px;color:var(--text-dim)}
+.point-distance{text-align:right;margin-left:8px}
+.point-dist-val{font-size:16px;font-weight:700}
+.point-dist-val.far{color:var(--danger)}.point-dist-val.medium{color:var(--warning)}.point-dist-val.close{color:var(--success)}
+.point-dist-unit{font-size:10px;color:var(--text-dim)}
+.point-bearing-arrow{font-size:16px;margin-left:6px;display:inline-block;transition:transform 0.3s}
+.point-status{margin-left:8px;width:24px;height:24px;border-radius:50%;border:2px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0;cursor:pointer}
+.point-status.visited{background:var(--visited-color);border-color:var(--visited-color)}
 
-/* ===== MAP ===== */
-#map-container {
-  position:fixed; top:44px; left:0; right:0; bottom:56px;
-  z-index:1;
-}
-#map { width:100%; height:100%; background:#111; }
+/* Tab Bar */
+.tab-bar{display:flex;background:var(--surface);border-top:1px solid var(--border);padding:4px 0;padding-bottom:env(safe-area-inset-bottom,4px);flex-shrink:0}
+.tab{flex:1;display:flex;flex-direction:column;align-items:center;padding:6px 0;cursor:pointer;color:var(--text-dim);font-size:10px;gap:2px;transition:color 0.15s}
+.tab.active{color:var(--primary)}
+.tab-icon{font-size:20px}
 
-/* Map with compass active */
-body.compass-active #map-container { top:220px; }
+/* Settings panel */
+.settings-panel{position:fixed;top:0;left:0;right:0;bottom:0;background:var(--bg);z-index:2000;display:none;overflow-y:auto;padding:16px}
+.settings-panel.show{display:block}
+.settings-back{font-size:14px;color:var(--primary);cursor:pointer;margin-bottom:16px;display:inline-block}
+.settings-panel h3{font-size:18px;margin-bottom:16px}
+.setting-row{display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--border)}
+.setting-label{font-size:14px}
+.setting-desc{font-size:11px;color:var(--text-dim)}
+.toggle{width:44px;height:24px;border-radius:12px;background:var(--surface2);position:relative;cursor:pointer;transition:background 0.2s}
+.toggle.on{background:var(--primary)}
+.toggle-knob{width:20px;height:20px;border-radius:50%;background:white;position:absolute;top:2px;left:2px;transition:left 0.2s}
+.toggle.on .toggle-knob{left:22px}
 
-/* ===== BOTTOM TAB BAR ===== */
-#tabbar {
-  position:fixed; bottom:0; left:0; right:0; z-index:1000;
-  background:var(--bg); border-top:1px solid var(--border);
-  display:flex; height:calc(56px + var(--safe-bottom));
-  padding-bottom:var(--safe-bottom);
-}
-.tab {
-  flex:1; display:flex; flex-direction:column; align-items:center;
-  justify-content:center; gap:2px; border:none; background:none;
-  color:var(--text-dim); font-family:var(--mono); font-size:9px;
-  letter-spacing:1px; text-transform:uppercase; cursor:pointer;
-  transition:color 0.2s;
-}
-.tab.active { color:var(--accent); }
-.tab svg { width:22px; height:22px; }
+/* Arrival overlay */
+.arrival-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(16,185,129,0.9);z-index:3000;display:none;flex-direction:column;align-items:center;justify-content:center;text-align:center}
+.arrival-overlay.show{display:flex}
+.arrival-icon{font-size:64px;margin-bottom:16px}
+.arrival-text{font-size:24px;font-weight:800;margin-bottom:8px}
+.arrival-sub{font-size:14px;opacity:0.8;margin-bottom:24px}
+.arrival-btn{padding:12px 32px;border-radius:12px;border:2px solid white;background:transparent;color:white;font-size:16px;font-weight:600;cursor:pointer}
 
-/* ===== PANELS ===== */
-.panel {
-  position:fixed; top:44px; left:0; right:0; bottom:56px;
-  z-index:800; background:var(--bg); overflow-y:auto;
-  display:none; padding:12px;
-  -webkit-overflow-scrolling:touch;
-}
-.panel.active { display:block; }
+/* Search */
+.search-bar{padding:8px 12px;flex-shrink:0}
+.search-input{width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:13px;outline:none}
+.search-input:focus{border-color:var(--primary)}
+.search-input::placeholder{color:var(--text-dim)}
 
-/* ===== SAMPLES LIST ===== */
-#samples-panel .search-bar {
-  display:flex; gap:8px; margin-bottom:12px;
-  position:sticky; top:0; background:var(--bg); padding:4px 0 8px; z-index:10;
-}
-#samples-panel input[type="text"] {
-  flex:1; background:var(--surface); border:1px solid var(--border);
-  border-radius:6px; padding:10px 12px; color:var(--text);
-  font-family:var(--mono); font-size:13px; outline:none;
-}
-#samples-panel input[type="text"]:focus { border-color:var(--accent); }
-#samples-panel .filter-row {
-  display:flex; gap:6px; margin-bottom:12px; flex-wrap:wrap;
-}
-.filter-btn {
-  padding:5px 12px; border-radius:14px; border:1px solid var(--border);
-  background:var(--surface); color:var(--text-dim); font-family:var(--mono);
-  font-size:10px; letter-spacing:0.5px; cursor:pointer; transition:all 0.2s;
-}
-.filter-btn.active { background:var(--accent); color:#000; border-color:var(--accent); }
-
-.sample-card {
-  background:var(--surface); border:1px solid var(--border);
-  border-radius:8px; padding:12px; margin-bottom:8px;
-  display:flex; align-items:center; gap:12px; cursor:pointer;
-  transition:all 0.15s;
-}
-.sample-card:active { transform:scale(0.98); background:var(--surface2); }
-.sample-card .point-icon {
-  width:36px; height:36px; border-radius:50%;
-  display:flex; align-items:center; justify-content:center;
-  font-family:var(--mono); font-weight:700; font-size:10px;
-  flex-shrink:0;
-}
-.sample-card .point-icon.proposed { background:var(--proposed)20; color:var(--proposed); border:2px solid var(--proposed); }
-.sample-card .point-icon.stepout { background:var(--stepout)20; color:var(--stepout); border:2px solid var(--stepout); }
-.sample-card .point-icon.visited { background:var(--visited)20; color:var(--visited); border:2px solid var(--visited); }
-.sample-card .info { flex:1; min-width:0; }
-.sample-card .info .name { font-family:var(--mono); font-size:13px; font-weight:600; }
-.sample-card .info .meta { font-size:11px; color:var(--text-dim); margin-top:2px; }
-.sample-card .nav-info { text-align:right; flex-shrink:0; }
-.sample-card .nav-info .dist { font-family:var(--mono); font-size:15px; font-weight:700; }
-.sample-card .nav-info .bearing { font-family:var(--mono); font-size:10px; color:var(--text-dim); }
-.sample-card .nav-info .arrow-sm { font-size:16px; }
-
-/* ===== SETTINGS PANEL ===== */
-#settings-panel .setting-group {
-  margin-bottom:20px;
-}
-#settings-panel .setting-group h3 {
-  font-family:var(--mono); font-size:11px; letter-spacing:2px;
-  text-transform:uppercase; color:var(--text-dim); margin-bottom:10px;
-  padding-bottom:6px; border-bottom:1px solid var(--border);
-}
-.setting-row {
-  display:flex; align-items:center; justify-content:space-between;
-  padding:10px 0; border-bottom:1px solid var(--border)40;
-}
-.setting-row .label { font-size:13px; }
-.setting-row .desc { font-size:11px; color:var(--text-dim); margin-top:2px; }
-.toggle {
-  width:44px; height:24px; border-radius:12px; border:none;
-  background:var(--surface2); cursor:pointer; position:relative;
-  transition:background 0.2s;
-}
-.toggle.on { background:var(--accent); }
-.toggle::after {
-  content:''; position:absolute; top:2px; left:2px;
-  width:20px; height:20px; border-radius:50%; background:#fff;
-  transition:transform 0.2s;
-}
-.toggle.on::after { transform:translateX(20px); }
-
-/* ===== ARRIVAL OVERLAY ===== */
-#arrival-overlay {
-  position:fixed; inset:0; z-index:2000; background:rgba(0,230,118,0.15);
-  display:none; align-items:center; justify-content:center;
-  flex-direction:column; backdrop-filter:blur(8px);
-}
-#arrival-overlay.active { display:flex; }
-#arrival-overlay .arrival-icon { font-size:64px; margin-bottom:16px; }
-#arrival-overlay .arrival-text {
-  font-family:var(--mono); font-size:20px; font-weight:700;
-  color:var(--accent); letter-spacing:2px;
-}
-#arrival-overlay .arrival-point {
-  font-family:var(--mono); font-size:28px; font-weight:800;
-  margin-top:8px;
-}
-#arrival-overlay .arrival-actions { margin-top:24px; display:flex; gap:12px; }
-#arrival-overlay .arrival-btn {
-  padding:12px 24px; border-radius:8px; border:none;
-  font-family:var(--mono); font-size:13px; font-weight:600;
-  cursor:pointer; letter-spacing:0.5px;
-}
-#arrival-overlay .btn-mark { background:var(--accent); color:#000; }
-#arrival-overlay .btn-dismiss { background:var(--surface2); color:var(--text); border:1px solid var(--border); }
-
-/* ===== GPS ACQUIRING OVERLAY ===== */
-#gps-overlay {
-  position:fixed; inset:0; z-index:3000; background:var(--bg);
-  display:flex; align-items:center; justify-content:center;
-  flex-direction:column; gap:16px;
-}
-#gps-overlay.hidden { display:none; }
-#gps-overlay .spinner {
-  width:48px; height:48px; border:3px solid var(--border);
-  border-top-color:var(--accent); border-radius:50%;
-  animation:spin 1s linear infinite;
-}
-@keyframes spin { to { transform:rotate(360deg); } }
-#gps-overlay .gps-text { font-family:var(--mono); font-size:14px; color:var(--text-dim); }
-
-/* ===== LEAFLET OVERRIDES ===== */
-.leaflet-control-zoom { display:none !important; }
-.leaflet-control-attribution { font-size:8px !important; opacity:0.5; }
-
-/* Custom markers */
-.marker-r2 {
-  width:24px; height:24px; border-radius:50%;
-  border:2px solid; display:flex; align-items:center;
-  justify-content:center; font-family:var(--mono);
-  font-size:7px; font-weight:700; line-height:1;
-  text-align:center; box-shadow:0 2px 8px rgba(0,0,0,0.5);
-}
-.marker-r2.proposed { background:#448aff30; border-color:#448aff; color:#448aff; }
-.marker-r2.stepout { background:#ff910030; border-color:#ff9100; color:#ff9100; }
-.marker-r2.visited-marker { background:#00e67630; border-color:#00e676; color:#00e676; }
-.marker-r2.selected { 
-  transform:scale(1.3); box-shadow:0 0 16px rgba(0,230,118,0.5);
-  border-color:var(--accent); z-index:9999 !important;
-}
-
-.marker-hist {
-  width:14px; height:14px; border-radius:50%;
-  border:1.5px solid #ffffff60; background:#ffffff20;
-  box-shadow:0 1px 4px rgba(0,0,0,0.4);
-}
-
-.user-marker {
-  width:18px; height:18px; border-radius:50%;
-  background:var(--accent); border:3px solid #fff;
-  box-shadow:0 0 12px rgba(0,230,118,0.6);
-  animation:pulse-user 2s ease-in-out infinite;
-}
-@keyframes pulse-user {
-  0%,100% { box-shadow:0 0 12px rgba(0,230,118,0.6); }
-  50% { box-shadow:0 0 24px rgba(0,230,118,0.9); }
-}
-
-.accuracy-circle {
-  border:2px solid rgba(0,230,118,0.3);
-  background:rgba(0,230,118,0.08);
-  border-radius:50%;
-}
-
-/* Nav line */
-.nav-line { stroke:var(--accent); stroke-width:2; stroke-dasharray:8,8; opacity:0.7; }
-
-/* ===== SUNLIGHT MODE ===== */
-body.sunlight { --bg:#f5f5f0; --surface:#fff; --surface2:#eee; --border:#ddd; --text:#111; --text-dim:#666; }
-body.sunlight #topbar, body.sunlight #tabbar { background:#f5f5f0; }
-body.sunlight .sample-card { border-color:#ccc; }
+/* Leaflet overrides */
+.leaflet-control-zoom{display:none!important}
+.user-marker{background:none;border:none}
+.accuracy-circle{fill:rgba(26,115,232,0.1);stroke:rgba(26,115,232,0.4);stroke-width:1}
 </style>
 </head>
 <body>
+<div id="app">
 
-<!-- GPS Acquiring Overlay -->
-<div id="gps-overlay">
-  <div class="spinner"></div>
-  <div class="gps-text">ACQUIRING GPS SIGNAL...</div>
-  <div class="gps-text" style="font-size:11px;color:var(--text-dim)">Enable location services on your device</div>
-</div>
-
-<!-- Arrival Overlay -->
-<div id="arrival-overlay">
-  <div class="arrival-icon">📍</div>
-  <div class="arrival-text">ARRIVED AT POINT</div>
-  <div class="arrival-point" id="arrival-point-name"></div>
-  <div class="arrival-actions">
-    <button class="arrival-btn btn-mark" onclick="markVisitedAndDismiss()">MARK VISITED ✓</button>
-    <button class="arrival-btn btn-dismiss" onclick="dismissArrival()">DISMISS</button>
+<!-- Header -->
+<div class="header">
+  <div class="header-left">
+    <div class="header-title">SBMM Navigator</div>
+    <div class="gps-indicator"><span class="gps-dot" id="gpsDot"></span><span id="gpsText">No GPS</span></div>
   </div>
+  <div class="progress-badge" id="progressBadge">0/50</div>
 </div>
 
-<!-- Top Bar -->
-<div id="topbar">
-  <span class="logo">SBMM NAV</span>
-  <div class="gps-status">
-    <div class="gps-bars">
-      <div class="gps-bar" style="height:4px" id="bar1"></div>
-      <div class="gps-bar" style="height:7px" id="bar2"></div>
-      <div class="gps-bar" style="height:10px" id="bar3"></div>
-      <div class="gps-bar" style="height:13px" id="bar4"></div>
+<!-- Navigation HUD -->
+<div class="nav-hud" id="navHud">
+  <div id="navContent" style="display:none">
+    <div class="compass-container">
+      <div class="compass-ring">
+        <span class="compass-n">N</span>
+        <div class="compass-arrow" id="compassArrow"></div>
+      </div>
     </div>
-    <span id="gps-acc" style="font-size:10px;color:var(--text-dim)">--</span>
+    <div class="nav-target-name" id="navTargetName">--</div>
+    <div class="nav-distance medium" id="navDistance">-- ft</div>
+    <div class="nav-bearing" id="navBearing">--</div>
+    <div class="nav-eta" id="navEta"></div>
   </div>
-  <div class="progress-badge" id="progress-badge">0/50</div>
-</div>
-
-<!-- Compass HUD -->
-<div id="compass-hud">
-  <div class="target-name" id="hud-target-name">NO TARGET</div>
-  <div class="compass-ring">
-    <div class="compass-arrow" id="compass-arrow">
-      <svg viewBox="0 0 80 80" fill="none">
-        <circle cx="40" cy="40" r="38" stroke="#333" stroke-width="1"/>
-        <text x="40" y="12" text-anchor="middle" fill="#666" font-size="8" font-family="JetBrains Mono">N</text>
-        <text x="40" y="76" text-anchor="middle" fill="#666" font-size="8" font-family="JetBrains Mono">S</text>
-        <text x="8" y="43" text-anchor="middle" fill="#666" font-size="8" font-family="JetBrains Mono">W</text>
-        <text x="72" y="43" text-anchor="middle" fill="#666" font-size="8" font-family="JetBrains Mono">E</text>
-        <polygon points="40,8 34,30 40,26 46,30" fill="#00e676"/>
-        <polygon points="40,72 34,50 40,54 46,50" fill="#333"/>
-      </svg>
-    </div>
-  </div>
-  <div class="distance-display" id="hud-distance">--</div>
-  <div>
-    <span class="distance-unit" id="hud-unit">ft</span>
-    <span class="bearing-text" id="hud-bearing"></span>
-  </div>
-  <div class="eta-text" id="hud-eta"></div>
+  <div id="navEmpty" class="no-target-msg">Tap a point to navigate</div>
 </div>
 
 <!-- Map -->
-<div id="map-container">
+<div class="map-container">
   <div id="map"></div>
+  <div class="map-controls">
+    <button class="map-btn" id="btnLocate" title="Center on me">&#x1F4CD;</button>
+    <button class="map-btn" id="btnLayers" title="Layers">&#x1F5FA;</button>
+    <button class="map-btn" id="btnZoomIn" title="Zoom in">+</button>
+    <button class="map-btn" id="btnZoomOut" title="Zoom out">&minus;</button>
+  </div>
+  <div class="layer-panel" id="layerPanel">
+    <h4>Layers</h4>
+    <div class="layer-row"><input type="checkbox" id="lyrR2" checked><div class="layer-dot" style="background:var(--proposed)"></div>R2 Proposed</div>
+    <div class="layer-row"><input type="checkbox" id="lyrStepout" checked><div class="layer-dot" style="background:var(--stepout)"></div>R2 Stepout</div>
+    <div class="layer-row"><input type="checkbox" id="lyrVisited" checked><div class="layer-dot" style="background:var(--visited-color)"></div>Visited</div>
+    <hr style="border-color:var(--border);margin:6px 0">
+    <h4>Historical (off by default)</h4>
+    <div class="layer-row"><input type="checkbox" id="lyrJacobs"><div class="layer-dot" style="background:#3388ff"></div>Jacobs 2025</div>
+    <div class="layer-row"><input type="checkbox" id="lyrEA"><div class="layer-dot" style="background:#d63e2a"></div>EA Historical</div>
+  </div>
 </div>
 
-<!-- Samples Panel -->
-<div class="panel" id="samples-panel">
-  <div class="search-bar">
-    <input type="text" id="search-input" placeholder="Search points...">
-  </div>
-  <div class="filter-row">
-    <button class="filter-btn active" data-filter="all">All (50)</button>
-    <button class="filter-btn" data-filter="proposed">Proposed (7)</button>
-    <button class="filter-btn" data-filter="stepout">Stepout (43)</button>
-    <button class="filter-btn" data-filter="unvisited">Unvisited</button>
-    <button class="filter-btn" data-filter="visited">Visited</button>
-  </div>
-  <div id="sample-list"></div>
-</div>
-
-<!-- Settings Panel -->
-<div class="panel" id="settings-panel">
-  <div class="setting-group">
-    <h3>Display</h3>
-    <div class="setting-row">
-      <div><div class="label">Sunlight Mode</div><div class="desc">High contrast for bright conditions</div></div>
-      <button class="toggle" id="toggle-sunlight" onclick="toggleSunlight()"></button>
-    </div>
-    <div class="setting-row">
-      <div><div class="label">Compass HUD</div><div class="desc">Show compass navigation overlay</div></div>
-      <button class="toggle on" id="toggle-compass" onclick="toggleCompassHUD()"></button>
-    </div>
-    <div class="setting-row">
-      <div><div class="label">Auto-center Map</div><div class="desc">Map follows your position</div></div>
-      <button class="toggle on" id="toggle-autocenter" onclick="toggleAutoCenter()"></button>
+<!-- Bottom Sheet -->
+<div class="bottom-sheet" id="bottomSheet">
+  <div class="sheet-handle" id="sheetHandle"><div class="sheet-handle-bar"></div></div>
+  <div class="sheet-header">
+    <span class="sheet-title" id="sheetTitle">Nearby Points</span>
+    <div class="sheet-filter">
+      <button class="filter-btn active" data-filter="all">All</button>
+      <button class="filter-btn" data-filter="proposed">Proposed</button>
+      <button class="filter-btn" data-filter="stepout">Stepout</button>
+      <button class="filter-btn" data-filter="todo">To Do</button>
     </div>
   </div>
-  <div class="setting-group">
-    <h3>Map Layers</h3>
-    <div class="setting-row">
-      <div><div class="label">Historical Samples (2025)</div><div class="desc">41 Jacobs samples with results</div></div>
-      <button class="toggle" id="toggle-hist" onclick="toggleHistorical()"></button>
-    </div>
-    <div class="setting-row">
-      <div><div class="label">EA Historical</div><div class="desc">54 EA samples</div></div>
-      <button class="toggle" id="toggle-ea" onclick="toggleEA()"></button>
-    </div>
-    <div class="setting-row">
-      <div><div class="label">Satellite Imagery</div><div class="desc">Toggle satellite/street map</div></div>
-      <button class="toggle on" id="toggle-satellite" onclick="toggleSatellite()"></button>
-    </div>
-  </div>
-  <div class="setting-group">
-    <h3>Navigation</h3>
-    <div class="setting-row">
-      <div><div class="label">Arrival Alert Distance</div><div class="desc">Vibrate when within distance (ft)</div></div>
-      <select id="arrival-dist" style="background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-family:var(--mono);font-size:12px;" onchange="settings.arrivalDist=+this.value;saveSettings()">
-        <option value="10">10 ft</option>
-        <option value="15" selected>15 ft</option>
-        <option value="25">25 ft</option>
-        <option value="50">50 ft</option>
-      </select>
-    </div>
-  </div>
-  <div class="setting-group">
-    <h3>Data</h3>
-    <div class="setting-row">
-      <div><div class="label">Reset All Visited Status</div><div class="desc">Clear all visited markers</div></div>
-      <button style="padding:8px 16px;border-radius:6px;border:1px solid var(--danger);background:transparent;color:var(--danger);font-family:var(--mono);font-size:11px;cursor:pointer;" onclick="resetVisited()">RESET</button>
-    </div>
-    <div class="setting-row">
-      <div><div class="label">Copy Current GPS</div><div class="desc">Copy coordinates to clipboard</div></div>
-      <button style="padding:8px 16px;border-radius:6px;border:1px solid var(--accent);background:transparent;color:var(--accent);font-family:var(--mono);font-size:11px;cursor:pointer;" onclick="copyGPS()">COPY</button>
-    </div>
-    <div class="setting-row">
-      <div><div class="label">Export Visit Log</div><div class="desc">Download CSV of visited points</div></div>
-      <button style="padding:8px 16px;border-radius:6px;border:1px solid var(--accent);background:transparent;color:var(--accent);font-family:var(--mono);font-size:11px;cursor:pointer;" onclick="exportLog()">EXPORT</button>
-    </div>
-  </div>
-  <div style="text-align:center;padding:20px;font-family:var(--mono);font-size:10px;color:var(--text-dim);">
-    SBMM Field Navigator v1.0<br>
-    Sulphur Bank Mercury Mine — ABP Round 2<br>
-    50 Sampling Points (24 West + 26 East)
-  </div>
+  <div class="search-bar"><input type="text" class="search-input" id="searchInput" placeholder="Search points..."></div>
+  <div class="point-list" id="pointList"></div>
 </div>
 
 <!-- Tab Bar -->
-<div id="tabbar">
-  <button class="tab active" data-tab="map" onclick="switchTab('map')">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 6v16l7-4 8 4 7-4V2l-7 4-8-4-7 4z"/><path d="M8 2v16"/><path d="M16 6v16"/></svg>
-    MAP
-  </button>
-  <button class="tab" data-tab="samples" onclick="switchTab('samples')">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
-    POINTS
-  </button>
-  <button class="tab" data-tab="locate" onclick="switchTab('locate');locateMe()">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v4"/><path d="M12 18v4"/><path d="M2 12h4"/><path d="M18 12h4"/><circle cx="12" cy="12" r="8"/></svg>
-    LOCATE
-  </button>
-  <button class="tab" data-tab="settings" onclick="switchTab('settings')">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-    SETTINGS
-  </button>
+<div class="tab-bar">
+  <div class="tab active" data-tab="map"><div class="tab-icon">&#x1F5FA;</div>Map</div>
+  <div class="tab" data-tab="list"><div class="tab-icon">&#x1F4CB;</div>Points</div>
+  <div class="tab" data-tab="navigate"><div class="tab-icon">&#x1F9ED;</div>Navigate</div>
+  <div class="tab" data-tab="settings"><div class="tab-icon">&#x2699;</div>Settings</div>
 </div>
 
+<!-- Arrival Overlay -->
+<div class="arrival-overlay" id="arrivalOverlay">
+  <div class="arrival-icon">&#x2705;</div>
+  <div class="arrival-text" id="arrivalPointName">Arrived!</div>
+  <div class="arrival-sub">You've reached the sampling point</div>
+  <button class="arrival-btn" id="arrivalDismiss">Mark Visited & Continue</button>
+</div>
+
+<!-- Settings Panel -->
+<div class="settings-panel" id="settingsPanel">
+  <span class="settings-back" id="settingsBack">&larr; Back</span>
+  <h3>Settings</h3>
+  <div class="setting-row">
+    <div><div class="setting-label">Auto-center map</div><div class="setting-desc">Map follows your GPS position</div></div>
+    <div class="toggle on" id="toggleAutoCenter"><div class="toggle-knob"></div></div>
+  </div>
+  <div class="setting-row">
+    <div><div class="setting-label">Vibrate on arrival</div><div class="setting-desc">Haptic feedback within 5m of target</div></div>
+    <div class="toggle on" id="toggleVibrate"><div class="toggle-knob"></div></div>
+  </div>
+  <div class="setting-row">
+    <div><div class="setting-label">Auto-select nearest</div><div class="setting-desc">Auto-navigate to closest unvisited point</div></div>
+    <div class="toggle" id="toggleAutoNearest"><div class="toggle-knob"></div></div>
+  </div>
+  <div class="setting-row">
+    <div><div class="setting-label">High contrast mode</div><div class="setting-desc">Extra-large fonts for bright sunlight</div></div>
+    <div class="toggle" id="toggleHighContrast"><div class="toggle-knob"></div></div>
+  </div>
+  <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:8px">
+    <div><div class="setting-label">Distance units</div></div>
+    <div style="display:flex;gap:8px">
+      <button class="filter-btn active" id="unitFeet" data-unit="feet">Feet</button>
+      <button class="filter-btn" id="unitMeters" data-unit="meters">Meters</button>
+    </div>
+  </div>
+  <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:8px">
+    <div><div class="setting-label">Export visit log</div><div class="setting-desc">Download CSV of visited points with timestamps</div></div>
+    <button class="filter-btn" id="exportBtn" style="margin-top:4px">Export CSV</button>
+  </div>
+  <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:8px">
+    <div><div class="setting-label">Reset all visited</div><div class="setting-desc">Clear all visited status (cannot undo)</div></div>
+    <button class="filter-btn" id="resetBtn" style="margin-top:4px;border-color:var(--danger);color:var(--danger)">Reset</button>
+  </div>
+  <div style="margin-top:24px;text-align:center;color:var(--text-dim);font-size:11px">SBMM ABP Field Navigator v1.0<br>50 R2 Sampling Points</div>
+</div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
+
 // ============================================================
-// DATA: 50 R2 SAMPLING POINTS
+// R2 SAMPLING POINTS - PRIMARY DATA (50 points)
 // ============================================================
-const R2_POINTS = [
-  {id:"ABP-R2-W01",type:"proposed",depth:"Shallow",lat:39.006016,lon:-122.669805},
-  {id:"ABP-R2-W02",type:"stepout",depth:"Both",lat:39.00753,lon:-122.668394},
-  {id:"ABP-R2-W03",type:"stepout",depth:"Both",lat:39.007455,lon:-122.669279},
-  {id:"ABP-R2-W04",type:"stepout",depth:"Both",lat:39.007346,lon:-122.667817},
-  {id:"ABP-R2-W05",type:"stepout",depth:"Both",lat:39.007298,lon:-122.66834},
-  {id:"ABP-R2-W06",type:"stepout",depth:"Both",lat:39.007273,lon:-122.669054},
-  {id:"ABP-R2-W07",type:"stepout",depth:"Both",lat:39.007156,lon:-122.668917},
-  {id:"ABP-R2-W08",type:"stepout",depth:"Both",lat:39.007138,lon:-122.669258},
-  {id:"ABP-R2-W09",type:"stepout",depth:"Both",lat:39.00705,lon:-122.668375},
-  {id:"ABP-R2-W10",type:"stepout",depth:"Both",lat:39.006871,lon:-122.669064},
-  {id:"ABP-R2-W11",type:"stepout",depth:"Both",lat:39.006863,lon:-122.66826},
-  {id:"ABP-R2-W12",type:"stepout",depth:"Both",lat:39.006704,lon:-122.669343},
-  {id:"ABP-R2-W13",type:"stepout",depth:"Both",lat:39.006667,lon:-122.66867},
-  {id:"ABP-R2-W14",type:"stepout",depth:"Both",lat:39.006527,lon:-122.668984},
-  {id:"ABP-R2-W15",type:"stepout",depth:"Both",lat:39.006371,lon:-122.668743},
-  {id:"ABP-R2-W16",type:"stepout",depth:"Shallow",lat:39.006246,lon:-122.67047},
-  {id:"ABP-R2-W17",type:"stepout",depth:"Both",lat:39.005996,lon:-122.668665},
-  {id:"ABP-R2-W18",type:"stepout",depth:"Both",lat:39.005927,lon:-122.668938},
-  {id:"ABP-R2-W19",type:"stepout",depth:"Shallow",lat:39.005833,lon:-122.669188},
-  {id:"ABP-R2-W20",type:"stepout",depth:"Both",lat:39.005654,lon:-122.668968},
-  {id:"ABP-R2-W21",type:"stepout",depth:"Both",lat:39.005633,lon:-122.668485},
-  {id:"ABP-R2-W22",type:"stepout",depth:"Both",lat:39.005412,lon:-122.668592},
-  {id:"ABP-R2-W23",type:"stepout",depth:"Both",lat:39.005299,lon:-122.667761},
-  {id:"ABP-R2-W24",type:"stepout",depth:"Both",lat:39.00487,lon:-122.668195},
-  {id:"ABP-R2-E01",type:"proposed",depth:"Both",lat:39.007588,lon:-122.666554},
-  {id:"ABP-R2-E02",type:"proposed",depth:"Shallow",lat:39.006914,lon:-122.665172},
-  {id:"ABP-R2-E03",type:"proposed",depth:"Both",lat:39.006858,lon:-122.665851},
-  {id:"ABP-R2-E04",type:"proposed",depth:"Shallow",lat:39.006675,lon:-122.665331},
-  {id:"ABP-R2-E05",type:"proposed",depth:"Shallow",lat:39.006194,lon:-122.665548},
-  {id:"ABP-R2-E06",type:"proposed",depth:"Shallow",lat:39.005804,lon:-122.665282},
-  {id:"ABP-R2-E07",type:"proposed",depth:"Shallow",lat:39.005285,lon:-122.66602},
-  {id:"ABP-R2-E08",type:"stepout",depth:"Shallow",lat:39.007342,lon:-122.666286},
-  {id:"ABP-R2-E09",type:"stepout",depth:"Both",lat:39.007109,lon:-122.666508},
-  {id:"ABP-R2-E10",type:"stepout",depth:"Both",lat:39.007104,lon:-122.6662},
-  {id:"ABP-R2-E11",type:"stepout",depth:"Shallow",lat:39.006898,lon:-122.666699},
-  {id:"ABP-R2-E12",type:"stepout",depth:"Both",lat:39.006794,lon:-122.667031},
-  {id:"ABP-R2-E13",type:"stepout",depth:"Both",lat:39.006794,lon:-122.666326},
-  {id:"ABP-R2-E14",type:"stepout",depth:"Shallow",lat:39.006604,lon:-122.666932},
-  {id:"ABP-R2-E15",type:"stepout",depth:"Shallow",lat:39.006548,lon:-122.666323},
-  {id:"ABP-R2-E16",type:"stepout",depth:"Shallow",lat:39.006546,lon:-122.665744},
-  {id:"ABP-R2-E17",type:"stepout",depth:"Both",lat:39.006358,lon:-122.666688},
-  {id:"ABP-R2-E18",type:"stepout",depth:"Both",lat:39.006266,lon:-122.665964},
-  {id:"ABP-R2-E19",type:"stepout",depth:"Both",lat:39.006185,lon:-122.666479},
-  {id:"ABP-R2-E20",type:"stepout",depth:"Shallow",lat:39.005916,lon:-122.665551},
-  {id:"ABP-R2-E21",type:"stepout",depth:"Shallow",lat:39.005891,lon:-122.665806},
-  {id:"ABP-R2-E22",type:"stepout",depth:"Shallow",lat:39.005687,lon:-122.665814},
-  {id:"ABP-R2-E23",type:"stepout",depth:"Shallow",lat:39.005564,lon:-122.665519},
-  {id:"ABP-R2-E24",type:"stepout",depth:"Both",lat:39.005558,lon:-122.666042},
-  {id:"ABP-R2-E25",type:"stepout",depth:"Both",lat:39.005462,lon:-122.666457},
-  {id:"ABP-R2-E26",type:"stepout",depth:"Shallow",lat:39.005408,lon:-122.665787}
+const r2Points = [
+  {id:"ABP-R2-W01",type:"proposed",depth:"Shallow",lat:39.006016,lon:-122.669805,area:"West"},
+  {id:"ABP-R2-W02",type:"stepout",depth:"Both",lat:39.00753,lon:-122.668394,area:"West"},
+  {id:"ABP-R2-W03",type:"stepout",depth:"Both",lat:39.007455,lon:-122.669279,area:"West"},
+  {id:"ABP-R2-W04",type:"stepout",depth:"Both",lat:39.007346,lon:-122.667817,area:"West"},
+  {id:"ABP-R2-W05",type:"stepout",depth:"Both",lat:39.007298,lon:-122.66834,area:"West"},
+  {id:"ABP-R2-W06",type:"stepout",depth:"Both",lat:39.007273,lon:-122.669054,area:"West"},
+  {id:"ABP-R2-W07",type:"stepout",depth:"Both",lat:39.007156,lon:-122.668917,area:"West"},
+  {id:"ABP-R2-W08",type:"stepout",depth:"Both",lat:39.007138,lon:-122.669258,area:"West"},
+  {id:"ABP-R2-W09",type:"stepout",depth:"Both",lat:39.00705,lon:-122.668375,area:"West"},
+  {id:"ABP-R2-W10",type:"stepout",depth:"Both",lat:39.006871,lon:-122.669064,area:"West"},
+  {id:"ABP-R2-W11",type:"stepout",depth:"Both",lat:39.006863,lon:-122.66826,area:"West"},
+  {id:"ABP-R2-W12",type:"stepout",depth:"Both",lat:39.006704,lon:-122.669343,area:"West"},
+  {id:"ABP-R2-W13",type:"stepout",depth:"Both",lat:39.006667,lon:-122.66867,area:"West"},
+  {id:"ABP-R2-W14",type:"stepout",depth:"Both",lat:39.006527,lon:-122.668984,area:"West"},
+  {id:"ABP-R2-W15",type:"stepout",depth:"Both",lat:39.006371,lon:-122.668743,area:"West"},
+  {id:"ABP-R2-W16",type:"stepout",depth:"Shallow",lat:39.006246,lon:-122.67047,area:"West"},
+  {id:"ABP-R2-W17",type:"stepout",depth:"Both",lat:39.005996,lon:-122.668665,area:"West"},
+  {id:"ABP-R2-W18",type:"stepout",depth:"Both",lat:39.005927,lon:-122.668938,area:"West"},
+  {id:"ABP-R2-W19",type:"stepout",depth:"Shallow",lat:39.005833,lon:-122.669188,area:"West"},
+  {id:"ABP-R2-W20",type:"stepout",depth:"Both",lat:39.005654,lon:-122.668968,area:"West"},
+  {id:"ABP-R2-W21",type:"stepout",depth:"Both",lat:39.005633,lon:-122.668485,area:"West"},
+  {id:"ABP-R2-W22",type:"stepout",depth:"Both",lat:39.005412,lon:-122.668592,area:"West"},
+  {id:"ABP-R2-W23",type:"stepout",depth:"Both",lat:39.005299,lon:-122.667761,area:"West"},
+  {id:"ABP-R2-W24",type:"stepout",depth:"Both",lat:39.00487,lon:-122.668195,area:"West"},
+  {id:"ABP-R2-E01",type:"proposed",depth:"Both",lat:39.007588,lon:-122.666554,area:"East"},
+  {id:"ABP-R2-E02",type:"proposed",depth:"Shallow",lat:39.006914,lon:-122.665172,area:"East"},
+  {id:"ABP-R2-E03",type:"proposed",depth:"Both",lat:39.006858,lon:-122.665851,area:"East"},
+  {id:"ABP-R2-E04",type:"proposed",depth:"Shallow",lat:39.006675,lon:-122.665331,area:"East"},
+  {id:"ABP-R2-E05",type:"proposed",depth:"Shallow",lat:39.006194,lon:-122.665548,area:"East"},
+  {id:"ABP-R2-E06",type:"proposed",depth:"Shallow",lat:39.005804,lon:-122.665282,area:"East"},
+  {id:"ABP-R2-E07",type:"proposed",depth:"Shallow",lat:39.005285,lon:-122.66602,area:"East"},
+  {id:"ABP-R2-E08",type:"stepout",depth:"Shallow",lat:39.007342,lon:-122.666286,area:"East"},
+  {id:"ABP-R2-E09",type:"stepout",depth:"Both",lat:39.007109,lon:-122.666508,area:"East"},
+  {id:"ABP-R2-E10",type:"stepout",depth:"Both",lat:39.007104,lon:-122.6662,area:"East"},
+  {id:"ABP-R2-E11",type:"stepout",depth:"Shallow",lat:39.006898,lon:-122.666699,area:"East"},
+  {id:"ABP-R2-E12",type:"stepout",depth:"Both",lat:39.006794,lon:-122.667031,area:"East"},
+  {id:"ABP-R2-E13",type:"stepout",depth:"Both",lat:39.006794,lon:-122.666326,area:"East"},
+  {id:"ABP-R2-E14",type:"stepout",depth:"Shallow",lat:39.006604,lon:-122.666932,area:"East"},
+  {id:"ABP-R2-E15",type:"stepout",depth:"Shallow",lat:39.006548,lon:-122.666323,area:"East"},
+  {id:"ABP-R2-E16",type:"stepout",depth:"Shallow",lat:39.006546,lon:-122.665744,area:"East"},
+  {id:"ABP-R2-E17",type:"stepout",depth:"Both",lat:39.006358,lon:-122.666688,area:"East"},
+  {id:"ABP-R2-E18",type:"stepout",depth:"Both",lat:39.006266,lon:-122.665964,area:"East"},
+  {id:"ABP-R2-E19",type:"stepout",depth:"Both",lat:39.006185,lon:-122.666479,area:"East"},
+  {id:"ABP-R2-E20",type:"stepout",depth:"Shallow",lat:39.005916,lon:-122.665551,area:"East"},
+  {id:"ABP-R2-E21",type:"stepout",depth:"Shallow",lat:39.005891,lon:-122.665806,area:"East"},
+  {id:"ABP-R2-E22",type:"stepout",depth:"Shallow",lat:39.005687,lon:-122.665814,area:"East"},
+  {id:"ABP-R2-E23",type:"stepout",depth:"Shallow",lat:39.005564,lon:-122.665519,area:"East"},
+  {id:"ABP-R2-E24",type:"stepout",depth:"Both",lat:39.005558,lon:-122.666042,area:"East"},
+  {id:"ABP-R2-E25",type:"stepout",depth:"Both",lat:39.005462,lon:-122.666457,area:"East"},
+  {id:"ABP-R2-E26",type:"stepout",depth:"Shallow",lat:39.005408,lon:-122.665787,area:"East"}
 ];
+
+// ============================================================
+// HISTORICAL DATA (togglable, off by default)
+// ============================================================
+var samples2025 = [{"num": 1, "label": "SS1", "lat": 39.005268, "lon": -122.670858, "sampled": true, "metals": {"Aluminum": 6300.0, "Antimony": 13.0, "Arsenic": 32.0, "Barium": 160.0, "Beryllium": 0.12, "Cadmium": 0.1, "Calcium": 1000.0, "Chromium": 28.0, "Cobalt": 3.0, "Copper": 25.0, "Iron": 32000.0, "Lead": 17.0, "Magnesium": 1200.0, "Manganese": 310.0, "Mercury": 210.0, "Nickel": 13.0, "Potassium": 1400.0, "Selenium": 0.61, "Silver": 0.5, "Sodium": 1000.0, "Thallium": 0.12, "Vanadium": 33.0, "Zinc": 28.0}, "priority": "HIGH", "color": "#d63e2a"}, {"num": 2, "label": "SS2", "lat": 39.005286, "lon": -122.670135, "sampled": true, "metals": {"Aluminum": 9500.0, "Antimony": 2.2, "Arsenic": 16.0, "Barium": 150.0, "Beryllium": 0.34, "Cadmium": 0.16, "Calcium": 980.0, "Chromium": 43.0, "Cobalt": 11.0, "Copper": 45.0, "Iron": 32000.0, "Lead": 17.0, "Magnesium": 2900.0, "Manganese": 1100.0, "Mercury": 270.0, "Nickel": 36.0, "Potassium": 1400.0, "Selenium": 0.73, "Silver": 0.096, "Sodium": 970.0, "Thallium": 0.12, "Vanadium": 38.0, "Zinc": 70.0}, "priority": "HIGH", "color": "#d63e2a"}, {"num": 3, "label": "SS3", "lat": 39.005681, "lon": -122.670723, "sampled": true, "metals": {"Aluminum": 26000.0, "Antimony": 1.0, "Arsenic": 1.9, "Barium": 380.0, "Beryllium": 0.53, "Cadmium": 0.94, "Calcium": 6100.0, "Chromium": 110.0, "Cobalt": 12.0, "Copper": 35.0, "Iron": 35000.0, "Lead": 24.0, "Magnesium": 1200.0, "Manganese": 790.0, "Mercury": 16.0, "Nickel": 15.0, "Potassium": 1600.0, "Selenium": 0.66, "Silver": 0.52, "Sodium": 1000.0, "Thallium": 0.41, "Vanadium": 140.0, "Zinc": 60.0}, "priority": "LOW", "color": "#72af26"}, {"num": 4, "label": "SS4", "lat": 39.004826, "lon": -122.668794, "sampled": true, "metals": {"Aluminum": 14000.0, "Antimony": 4.8, "Arsenic": 13.0, "Barium": 370.0, "Beryllium": 0.28, "Cadmium": 0.64, "Calcium": 3200.0, "Chromium": 73.0, "Cobalt": 9.4, "Copper": 30.0, "Iron": 33000.0, "Lead": 28.0, "Magnesium": 1200.0, "Manganese": 440.0, "Mercury": 960.0, "Nickel": 19.0, "Potassium": 1500.0, "Selenium": 0.57, "Silver": 0.52, "Sodium": 1000.0, "Thallium": 0.29, "Vanadium": 96.0, "Zinc": 49.0}, "priority": "HIGH", "color": "#d63e2a"}, {"num": 5, "label": "SS5", "lat": 39.005078, "lon": -122.669205, "sampled": true, "metals": {"Aluminum": 15000.0, "Antimony": 37.0, "Arsenic": 40.0, "Barium": 270.0, "Beryllium": 0.23, "Cadmium": 0.25, "Calcium": 1700.0, "Chromium": 51.0, "Cobalt": 6.2, "Copper": 29.0, "Iron": 29000.0, "Lead": 16.0, "Magnesium": 1800.0, "Manganese": 190.0, "Mercury": 230.0, "Nickel": 19.0, "Potassium": 1500.0, "Selenium": 0.44, "Silver": 0.49, "Sodium": 980.0, "Thallium": 0.16, "Vanadium": 57.0, "Zinc": 41.0}, "priority": "HIGH", "color": "#d63e2a"}, {"num": 6, "label": "SS6", "lat": 39.005428, "lon": -122.669195, "sampled": true, "metals": {"Aluminum": 12000.0, "Antimony": 0.65, "Arsenic": 6.3, "Barium": 120.0, "Beryllium": 0.27, "Cadmium": 0.2, "Calcium": 3300.0, "Chromium": 98.0, "Cobalt": 16.0, "Copper": 34.0, "Iron": 27000.0, "Lead": 6.0, "Magnesium": 13000.0, "Manganese": 470.0, "Mercury": 1.9, "Nickel": 120.0, "Potassium": 970.0, "Selenium": 0.45, "Silver": 0.49, "Sodium": 970.0, "Thallium": 0.19, "Vanadium": 53.0, "Zinc": 70.0}, "priority": "LOW", "color": "#72af26"}, {"num": 7, "label": "SS7", "lat": 39.005667, "lon": -122.66933, "sampled": true, "metals": {"Aluminum": 13000.0, "Antimony": 3.4, "Arsenic": 6.2, "Barium": 140.0, "Beryllium": 0.29, "Cadmium": 0.27, "Calcium": 3500.0, "Chromium": 60.0, "Cobalt": 13.0, "Copper": 28.0, "Iron": 28000.0, "Lead": 6.6, "Magnesium": 11000.0, "Manganese": 830.0, "Mercury": 17.0, "Nickel": 86.0, "Potassium": 930.0, "Selenium": 0.48, "Silver": 0.58, "Sodium": 1200.0, "Thallium": 0.23, "Vanadium": 44.0, "Zinc": 56.0}, "priority": "LOW", "color": "#72af26"}, {"num": 8, "label": "SS8", "lat": 39.006076, "lon": -122.668851, "sampled": true, "metals": {"Aluminum": 1700.0, "Antimony": 0.86, "Arsenic": 0.59, "Barium": 120.0, "Beryllium": 0.54, "Cadmium": 1.1, "Calcium": 1800.0, "Chromium": 12.0, "Cobalt": 0.73, "Copper": 12.0, "Iron": 3100.0, "Lead": 18.0, "Magnesium": 1100.0, "Manganese": 150.0, "Mercury": 65.0, "Nickel": 3.6, "Potassium": 1100.0, "Selenium": 2.7, "Silver": 0.54, "Sodium": 1100.0, "Thallium": 0.091, "Vanadium": 11.0, "Zinc": 12.0}, "priority": "MEDIUM", "color": "#f0932b"}, {"num": 9, "label": "SS9", "lat": 39.00635, "lon": -122.669578, "sampled": true, "metals": {"Aluminum": 21000.0, "Antimony": 2.1, "Arsenic": 7.0, "Barium": 300.0, "Beryllium": 0.4, "Cadmium": 0.76, "Calcium": 3000.0, "Chromium": 110.0, "Cobalt": 13.0, "Copper": 35.0, "Iron": 33000.0, "Lead": 22.0, "Magnesium": 3600.0, "Manganese": 520.0, "Mercury": 55.0, "Nickel": 42.0, "Potassium": 1200.0, "Selenium": 0.71, "Silver": 0.51, "Sodium": 1000.0, "Thallium": 0.32, "Vanadium": 120.0, "Zinc": 63.0}, "priority": "MEDIUM", "color": "#f0932b"}, {"num": 10, "label": "SS10", "lat": 39.006838, "lon": -122.669621, "sampled": true, "metals": {"Aluminum": 14000.0, "Antimony": 1.2, "Arsenic": 5.3, "Barium": 120.0, "Beryllium": 0.31, "Cadmium": 0.37, "Calcium": 3600.0, "Chromium": 49.0, "Cobalt": 11.0, "Copper": 21.0, "Iron": 21000.0, "Lead": 5.8, "Magnesium": 7600.0, "Manganese": 500.0, "Mercury": 19.0, "Nickel": 49.0, "Potassium": 960.0, "Selenium": 0.43, "Silver": 0.48, "Sodium": 960.0, "Thallium": 0.091, "Vanadium": 41.0, "Zinc": 44.0}, "priority": "LOW", "color": "#72af26"}, {"num": 11, "label": "SS11", "lat": 39.00721, "lon": -122.669531, "sampled": true, "metals": {"Aluminum": 6900.0, "Antimony": 0.85, "Arsenic": 2.3, "Barium": 67.0, "Beryllium": 0.13, "Cadmium": 0.22, "Calcium": 4100.0, "Chromium": 32.0, "Cobalt": 9.0, "Copper": 18.0, "Iron": 12000.0, "Lead": 2.9, "Magnesium": 8600.0, "Manganese": 240.0, "Mercury": 9.1, "Nickel": 26.0, "Potassium": 990.0, "Selenium": 2.5, "Silver": 0.5, "Sodium": 990.0, "Thallium": 0.2, "Vanadium": 21.0, "Zinc": 24.0}, "priority": "LOW", "color": "#72af26"}, {"num": 12, "label": "SS12", "lat": 39.007476, "lon": -122.669684, "sampled": true, "metals": {"Aluminum": 15000.0, "Antimony": 0.2, "Arsenic": 1.5, "Barium": 250.0, "Beryllium": 0.19, "Cadmium": 0.73, "Calcium": 14000.0, "Chromium": 76.0, "Cobalt": 11.0, "Copper": 26.0, "Iron": 19000.0, "Lead": 17.0, "Magnesium": 6000.0, "Manganese": 320.0, "Mercury": 55.0, "Nickel": 32.0, "Potassium": 1000.0, "Selenium": 0.41, "Silver": 0.51, "Sodium": 1000.0, "Thallium": 0.17, "Vanadium": 78.0, "Zinc": 33.0}, "priority": "MEDIUM", "color": "#f0932b"}, {"num": 13, "label": "SS13", "lat": 39.007543, "lon": -122.668894, "sampled": true, "metals": {"Aluminum": 20000.0, "Antimony": 1.2, "Arsenic": 3.1, "Barium": 190.0, "Beryllium": 0.36, "Cadmium": 0.7, "Calcium": 1100.0, "Chromium": 80.0, "Cobalt": 6.8, "Copper": 26.0, "Iron": 37000.0, "Lead": 16.0, "Magnesium": 1100.0, "Manganese": 1100.0, "Mercury": 780.0, "Nickel": 13.0, "Potassium": 860.0, "Selenium": 0.77, "Silver": 0.54, "Sodium": 1100.0, "Thallium": 0.3, "Vanadium": 120.0, "Zinc": 35.0}, "priority": "HIGH", "color": "#d63e2a"}, {"num": 14, "label": "SS14", "lat": 39.00728, "lon": -122.668997, "sampled": false, "metals": {"Aluminum": null, "Antimony": null, "Arsenic": null, "Barium": null, "Beryllium": null, "Cadmium": null, "Calcium": null, "Chromium": null, "Cobalt": null, "Copper": null, "Iron": null, "Lead": null, "Magnesium": null, "Manganese": null, "Mercury": null, "Nickel": null, "Potassium": null, "Selenium": null, "Silver": null, "Sodium": null, "Thallium": null, "Vanadium": null, "Zinc": null}, "priority": "NOT SAMPLED", "color": "#808080"}, {"num": 15, "label": "SS15", "lat": 39.007055, "lon": -122.668757, "sampled": true, "metals": {"Aluminum": 12000.0, "Antimony": 0.24, "Arsenic": 1.2, "Barium": 320.0, "Beryllium": 0.33, "Cadmium": 1.0, "Calcium": 5600.0, "Chromium": 59.0, "Cobalt": 5.4, "Copper": 22.0, "Iron": 14000.0, "Lead": 22.0, "Magnesium": 890.0, "Manganese": 530.0, "Mercury": 170.0, "Nickel": 9.4, "Potassium": 1500.0, "Selenium": 0.49, "Silver": 0.51, "Sodium": 1000.0, "Thallium": 0.34, "Vanadium": 57.0, "Zinc": 19.0}, "priority": "MEDIUM", "color": "#f0932b"}, {"num": 16, "label": "SS16", "lat": 39.007146, "lon": -122.668047, "sampled": true, "metals": {"Aluminum": 14000.0, "Antimony": 0.35, "Arsenic": 1.7, "Barium": 320.0, "Beryllium": 0.36, "Cadmium": 0.64, "Calcium": 2000.0, "Chromium": 65.0, "Cobalt": 4.4, "Copper": 19.0, "Iron": 21000.0, "Lead": 26.0, "Magnesium": 900.0, "Manganese": 470.0, "Mercury": 56.0, "Nickel": 11.0, "Potassium": 890.0, "Selenium": 2.7, "Silver": 0.55, "Sodium": 1100.0, "Thallium": 0.21, "Vanadium": 83.0, "Zinc": 24.0}, "priority": "MEDIUM", "color": "#f0932b"}, {"num": 17, "label": "SS17", "lat": 39.006847, "lon": -122.668618, "sampled": true, "metals": {"Aluminum": 6300.0, "Antimony": 0.39, "Arsenic": 1.1, "Barium": 250.0, "Beryllium": 0.13, "Cadmium": 0.58, "Calcium": 1100.0, "Chromium": 23.0, "Cobalt": 2.0, "Copper": 15.0, "Iron": 10000.0, "Lead": 16.0, "Magnesium": 1100.0, "Manganese": 100.0, "Mercury": 1000.0, "Nickel": 5.5, "Potassium": 1100.0, "Selenium": 2.8, "Silver": 0.56, "Sodium": 1100.0, "Thallium": 0.27, "Vanadium": 30.0, "Zinc": 10.0}, "priority": "HIGH", "color": "#d63e2a"}, {"num": 18, "label": "SS18", "lat": 39.006493, "lon": -122.668758, "sampled": true, "metals": {"Aluminum": 4700.0, "Antimony": 0.45, "Arsenic": 1.3, "Barium": 190.0, "Beryllium": 0.12, "Cadmium": 0.43, "Calcium": 1100.0, "Chromium": 19.0, "Cobalt": 1.0, "Copper": 22.0, "Iron": 6700.0, "Lead": 14.0, "Magnesium": 1100.0, "Manganese": 78.0, "Mercury": 1500.0, "Nickel": 4.6, "Potassium": 590.0, "Selenium": 0.45, "Silver": 0.11, "Sodium": 1100.0, "Thallium": 0.19, "Vanadium": 23.0, "Zinc": 10.0}, "priority": "HIGH", "color": "#d63e2a"}, {"num": 19, "label": "SS19", "lat": 39.005612, "lon": -122.668144, "sampled": false, "metals": {"Aluminum": null, "Antimony": null, "Arsenic": null, "Barium": null, "Beryllium": null, "Cadmium": null, "Calcium": null, "Chromium": null, "Cobalt": null, "Copper": null, "Iron": null, "Lead": null, "Magnesium": null, "Manganese": null, "Mercury": null, "Nickel": null, "Potassium": null, "Selenium": null, "Silver": null, "Sodium": null, "Thallium": null, "Vanadium": null, "Zinc": null}, "priority": "NOT SAMPLED", "color": "#808080"}, {"num": 20, "label": "SS20", "lat": 39.005327, "lon": -122.668416, "sampled": true, "metals": {"Aluminum": 14000.0, "Antimony": 0.53, "Arsenic": 2.1, "Barium": 290.0, "Beryllium": 0.18, "Cadmium": 0.88, "Calcium": 1300.0, "Chromium": 60.0, "Cobalt": 3.5, "Copper": 15.0, "Iron": 20000.0, "Lead": 19.0, "Magnesium": 670.0, "Manganese": 160.0, "Mercury": 280.0, "Nickel": 7.8, "Potassium": 1100.0, "Selenium": 2.8, "Silver": 0.55, "Sodium": 1100.0, "Thallium": 0.26, "Vanadium": 74.0, "Zinc": 19.0}, "priority": "HIGH", "color": "#d63e2a"}, {"num": 21, "label": "SS21", "lat": 39.004762, "lon": -122.667727, "sampled": true, "metals": {"Aluminum": 16000.0, "Antimony": 4.7, "Arsenic": 11.0, "Barium": 190.0, "Beryllium": 0.4, "Cadmium": 0.49, "Calcium": 7400.0, "Chromium": 56.0, "Cobalt": 10.0, "Copper": 23.0, "Iron": 22000.0, "Lead": 13.0, "Magnesium": 6100.0, "Manganese": 420.0, "Mercury": 130.0, "Nickel": 38.0, "Potassium": 1600.0, "Selenium": 0.37, "Silver": 0.51, "Sodium": 1000.0, "Thallium": 0.19, "Vanadium": 55.0, "Zinc": 50.0}, "priority": "MEDIUM", "color": "#f0932b"}, {"num": 22, "label": "SS22", "lat": 39.004997, "lon": -122.667652, "sampled": true, "metals": {"Aluminum": 20000.0, "Antimony": 4.2, "Arsenic": 7.8, "Barium": 340.0, "Beryllium": 0.19, "Cadmium": 0.7, "Calcium": 2000.0, "Chromium": 67.0, "Cobalt": 3.6, "Copper": 21.0, "Iron": 27000.0, "Lead": 19.0, "Magnesium": 570.0, "Manganese": 190.0, "Mercury": 360.0, "Nickel": 6.2, "Potassium": 740.0, "Selenium": 2.7, "Silver": 0.53, "Sodium": 1100.0, "Thallium": 0.28, "Vanadium": 92.0, "Zinc": 24.0}, "priority": "HIGH", "color": "#d63e2a"}, {"num": 23, "label": "SS23", "lat": 39.005229, "lon": -122.667758, "sampled": false, "metals": {"Aluminum": null, "Antimony": null, "Arsenic": null, "Barium": null, "Beryllium": null, "Cadmium": null, "Calcium": null, "Chromium": null, "Cobalt": null, "Copper": null, "Iron": null, "Lead": null, "Magnesium": null, "Manganese": null, "Mercury": null, "Nickel": null, "Potassium": null, "Selenium": null, "Silver": null, "Sodium": null, "Thallium": null, "Vanadium": null, "Zinc": null}, "priority": "NOT SAMPLED", "color": "#808080"}, {"num": 24, "label": "SS24", "lat": 39.005414, "lon": -122.667103, "sampled": false, "metals": {"Aluminum": null, "Antimony": null, "Arsenic": null, "Barium": null, "Beryllium": null, "Cadmium": null, "Calcium": null, "Chromium": null, "Cobalt": null, "Copper": null, "Iron": null, "Lead": null, "Magnesium": null, "Manganese": null, "Mercury": null, "Nickel": null, "Potassium": null, "Selenium": null, "Silver": null, "Sodium": null, "Thallium": null, "Vanadium": null, "Zinc": null}, "priority": "NOT SAMPLED", "color": "#808080"}, {"num": 25, "label": "SS25", "lat": 39.005364, "lon": -122.66664, "sampled": false, "metals": {"Aluminum": null, "Antimony": null, "Arsenic": null, "Barium": null, "Beryllium": null, "Cadmium": null, "Calcium": null, "Chromium": null, "Cobalt": null, "Copper": null, "Iron": null, "Lead": null, "Magnesium": null, "Manganese": null, "Mercury": null, "Nickel": null, "Potassium": null, "Selenium": null, "Silver": null, "Sodium": null, "Thallium": null, "Vanadium": null, "Zinc": null}, "priority": "NOT SAMPLED", "color": "#808080"}, {"num": 26, "label": "SS26", "lat": 39.005175, "lon": -122.665878, "sampled": false, "metals": {"Aluminum": null, "Antimony": null, "Arsenic": null, "Barium": null, "Beryllium": null, "Cadmium": null, "Calcium": null, "Chromium": null, "Cobalt": null, "Copper": null, "Iron": null, "Lead": null, "Magnesium": null, "Manganese": null, "Mercury": null, "Nickel": null, "Potassium": null, "Selenium": null, "Silver": null, "Sodium": null, "Thallium": null, "Vanadium": null, "Zinc": null}, "priority": "NOT SAMPLED", "color": "#808080"}, {"num": 27, "label": "SS27", "lat": 39.005487, "lon": -122.66583, "sampled": false, "metals": {"Aluminum": null, "Antimony": null, "Arsenic": null, "Barium": null, "Beryllium": null, "Cadmium": null, "Calcium": null, "Chromium": null, "Cobalt": null, "Copper": null, "Iron": null, "Lead": null, "Magnesium": null, "Manganese": null, "Mercury": null, "Nickel": null, "Potassium": null, "Selenium": null, "Silver": null, "Sodium": null, "Thallium": null, "Vanadium": null, "Zinc": null}, "priority": "NOT SAMPLED", "color": "#808080"}, {"num": 28, "label": "SS28", "lat": 39.005789, "lon": -122.665732, "sampled": false, "metals": {"Aluminum": null, "Antimony": null, "Arsenic": null, "Barium": null, "Beryllium": null, "Cadmium": null, "Calcium": null, "Chromium": null, "Cobalt": null, "Copper": null, "Iron": null, "Lead": null, "Magnesium": null, "Manganese": null, "Mercury": null, "Nickel": null, "Potassium": null, "Selenium": null, "Silver": null, "Sodium": null, "Thallium": null, "Vanadium": null, "Zinc": null}, "priority": "NOT SAMPLED", "color": "#808080"}, {"num": 29, "label": "SS29", "lat": 39.005967, "lon": -122.666705, "sampled": true, "metals": {"Aluminum": 2800.0, "Antimony": 0.45, "Arsenic": 0.47, "Barium": 140.0, "Beryllium": 0.097, "Cadmium": 0.22, "Calcium": 1100.0, "Chromium": 11.0, "Cobalt": 0.77, "Copper": 8.6, "Iron": 3700.0, "Lead": 14.0, "Magnesium": 1100.0, "Manganese": 19.0, "Mercury": 230.0, "Nickel": 3.8, "Potassium": 890.0, "Selenium": 2.7, "Silver": 0.55, "Sodium": 1100.0, "Thallium": 0.22, "Vanadium": 14.0, "Zinc": 7.2}, "priority": "HIGH", "color": "#d63e2a"}, {"num": 30, "label": "SS30", "lat": 39.005968, "lon": -122.66646, "sampled": true, "metals": {"Aluminum": 7300.0, "Antimony": 0.29, "Arsenic": 0.9, "Barium": 240.0, "Beryllium": 0.13, "Cadmium": 0.37, "Calcium": 1100.0, "Chromium": 25.0, "Cobalt": 0.89, "Copper": 11.0, "Iron": 5800.0, "Lead": 12.0, "Magnesium": 330.0, "Manganese": 43.0, "Mercury": 390.0, "Nickel": 5.3, "Potassium": 840.0, "Selenium": 2.8, "Silver": 0.11, "Sodium": 1100.0, "Thallium": 0.23, "Vanadium": 25.0, "Zinc": 11.0}, "priority": "HIGH", "color": "#d63e2a"}, {"num": 31, "label": "SS31", "lat": 39.006175, "lon": -122.666803, "sampled": true, "metals": {"Aluminum": 2100.0, "Antimony": 0.31, "Arsenic": 0.57, "Barium": 78.0, "Beryllium": 0.56, "Cadmium": 0.22, "Calcium": 1100.0, "Chromium": 10.0, "Cobalt": 0.37, "Copper": 7.5, "Iron": 3100.0, "Lead": 6.8, "Magnesium": 1100.0, "Manganese": 19.0, "Mercury": 230.0, "Nickel": 2.2, "Potassium": 360.0, "Selenium": 2.8, "Silver": 0.098, "Sodium": 1100.0, "Thallium": 0.22, "Vanadium": 11.0, "Zinc": 4.7}, "priority": "HIGH", "color": "#d63e2a"}, {"num": 32, "label": "SS32", "lat": 39.006168, "lon": -122.666265, "sampled": true, "metals": {"Aluminum": 11000.0, "Antimony": 3.1, "Arsenic": 7.9, "Barium": 230.0, "Beryllium": 0.18, "Cadmium": 0.25, "Calcium": 4200.0, "Chromium": 40.0, "Cobalt": 9.6, "Copper": 15.0, "Iron": 19000.0, "Lead": 10.0, "Magnesium": 2100.0, "Manganese": 360.0, "Mercury": 220.0, "Nickel": 24.0, "Potassium": 1200.0, "Selenium": 2.5, "Silver": 0.5, "Sodium": 1000.0, "Thallium": 0.092, "Vanadium": 37.0, "Zinc": 43.0}, "priority": "HIGH", "color": "#d63e2a"}, {"num": 33, "label": "SS33", "lat": 39.006377, "lon": -122.665714, "sampled": true, "metals": {"Aluminum": 26000.0, "Antimony": 0.26, "Arsenic": 2.0, "Barium": 290.0, "Beryllium": 0.45, "Cadmium": 0.87, "Calcium": 2200.0, "Chromium": 140.0, "Cobalt": 15.0, "Copper": 26.0, "Iron": 44000.0, "Lead": 19.0, "Magnesium": 1300.0, "Manganese": 620.0, "Mercury": 170.0, "Nickel": 14.0, "Potassium": 820.0, "Selenium": 0.58, "Silver": 0.51, "Sodium": 1000.0, "Thallium": 0.22, "Vanadium": 180.0, "Zinc": 49.0}, "priority": "MEDIUM", "color": "#f0932b"}, {"num": 34, "label": "SS34", "lat": 39.006612, "lon": -122.665525, "sampled": true, "metals": {"Aluminum": 30000.0, "Antimony": 0.19, "Arsenic": 2.8, "Barium": 270.0, "Beryllium": 0.52, "Cadmium": 1.2, "Calcium": 2700.0, "Chromium": 120.0, "Cobalt": 17.0, "Copper": 22.0, "Iron": 46000.0, "Lead": 18.0, "Magnesium": 2000.0, "Manganese": 820.0, "Mercury": 110.0, "Nickel": 18.0, "Potassium": 790.0, "Selenium": 0.61, "Silver": 0.08, "Sodium": 1000.0, "Thallium": 0.2, "Vanadium": 170.0, "Zinc": 69.0}, "priority": "MEDIUM", "color": "#f0932b"}, {"num": 35, "label": "SS35", "lat": 39.006936, "lon": -122.666106, "sampled": true, "metals": {"Aluminum": 3800.0, "Antimony": 8.3, "Arsenic": 7.2, "Barium": 330.0, "Beryllium": 0.076, "Cadmium": 0.35, "Calcium": 4700.0, "Chromium": 17.0, "Cobalt": 2.3, "Copper": 9.4, "Iron": 12000.0, "Lead": 27.0, "Magnesium": 630.0, "Manganese": 2700.0, "Mercury": 1200.0, "Nickel": 5.6, "Potassium": 1200.0, "Selenium": 2.9, "Silver": 0.57, "Sodium": 1100.0, "Thallium": 0.46, "Vanadium": 25.0, "Zinc": 29.0}, "priority": "HIGH", "color": "#d63e2a"}, {"num": 36, "label": "SS36", "lat": 39.007419, "lon": -122.666159, "sampled": false, "metals": {"Aluminum": null, "Antimony": null, "Arsenic": null, "Barium": null, "Beryllium": null, "Cadmium": null, "Calcium": null, "Chromium": null, "Cobalt": null, "Copper": null, "Iron": null, "Lead": null, "Magnesium": null, "Manganese": null, "Mercury": null, "Nickel": null, "Potassium": null, "Selenium": null, "Silver": null, "Sodium": null, "Thallium": null, "Vanadium": null, "Zinc": null}, "priority": "NOT SAMPLED", "color": "#808080"}, {"num": 37, "label": "SS37", "lat": 39.006667, "lon": -122.66721, "sampled": true, "metals": {"Aluminum": 5400.0, "Antimony": 0.66, "Arsenic": 0.93, "Barium": 220.0, "Beryllium": 0.1, "Cadmium": 0.22, "Calcium": 1100.0, "Chromium": 17.0, "Cobalt": 2.4, "Copper": 11.0, "Iron": 8700.0, "Lead": 25.0, "Magnesium": 470.0, "Manganese": 150.0, "Mercury": 470.0, "Nickel": 5.4, "Potassium": 620.0, "Selenium": 2.8, "Silver": 0.56, "Sodium": 1100.0, "Thallium": 0.095, "Vanadium": 21.0, "Zinc": 17.0}, "priority": "HIGH", "color": "#d63e2a"}, {"num": 38, "label": "SS38", "lat": 39.00694, "lon": -122.667462, "sampled": true, "metals": {"Aluminum": 6400.0, "Antimony": 3.9, "Arsenic": 3.5, "Barium": 250.0, "Beryllium": 0.067, "Cadmium": 0.43, "Calcium": 1000.0, "Chromium": 23.0, "Cobalt": 1.2, "Copper": 14.0, "Iron": 11000.0, "Lead": 12.0, "Magnesium": 1000.0, "Manganese": 67.0, "Mercury": 620.0, "Nickel": 3.7, "Potassium": 900.0, "Selenium": 2.6, "Silver": 0.52, "Sodium": 1000.0, "Thallium": 0.14, "Vanadium": 24.0, "Zinc": 12.0}, "priority": "HIGH", "color": "#d63e2a"}, {"num": 39, "label": "SS39", "lat": 39.00759, "lon": -122.667635, "sampled": true, "metals": {"Aluminum": 24000.0, "Antimony": 5.3, "Arsenic": 6.0, "Barium": 400.0, "Beryllium": 0.59, "Cadmium": 0.79, "Calcium": 2600.0, "Chromium": 91.0, "Cobalt": 12.0, "Copper": 30.0, "Iron": 32000.0, "Lead": 27.0, "Magnesium": 1400.0, "Manganese": 640.0, "Mercury": 220.0, "Nickel": 19.0, "Potassium": 1400.0, "Selenium": 0.86, "Silver": 0.13, "Sodium": 1000.0, "Thallium": 0.28, "Vanadium": 130.0, "Zinc": 58.0}, "priority": "HIGH", "color": "#d63e2a"}, {"num": 40, "label": "SS40", "lat": 39.007695, "lon": -122.667005, "sampled": true, "metals": {"Aluminum": 10000.0, "Antimony": 34.0, "Arsenic": 20.0, "Barium": 300.0, "Beryllium": 0.18, "Cadmium": 0.34, "Calcium": 1400.0, "Chromium": 45.0, "Cobalt": 4.0, "Copper": 28.0, "Iron": 28000.0, "Lead": 19.0, "Magnesium": 680.0, "Manganese": 280.0, "Mercury": 660.0, "Nickel": 9.9, "Potassium": 1200.0, "Selenium": 0.52, "Silver": 0.53, "Sodium": 1100.0, "Thallium": 0.38, "Vanadium": 48.0, "Zinc": 29.0}, "priority": "HIGH", "color": "#d63e2a"}, {"num": 41, "label": "SS41", "lat": 39.00791, "lon": -122.666428, "sampled": true, "metals": {"Aluminum": 19000.0, "Antimony": 1.1, "Arsenic": 1.5, "Barium": 180.0, "Beryllium": 0.75, "Cadmium": 0.68, "Calcium": 4600.0, "Chromium": 43.0, "Cobalt": 13.0, "Copper": 11.0, "Iron": 17000.0, "Lead": 7.9, "Magnesium": 2300.0, "Manganese": 650.0, "Mercury": 1.8, "Nickel": 22.0, "Potassium": 1100.0, "Selenium": 2.6, "Silver": 0.53, "Sodium": 1100.0, "Thallium": 0.5, "Vanadium": 40.0, "Zinc": 24.0}, "priority": "LOW", "color": "#72af26"}];
+var eaSamples = [{"id": "ABWP01-01", "lat": 39.0077465970319, "lon": -122.667500272217, "mercury": 450, "arsenic": 9.5, "antimony": 7.9, "thallium": 0.2, "priority": "HIGH", "color": "#d63e2a", "area": "ABWP01"}, {"id": "ABWP01-02", "lat": 39.0075456088709, "lon": -122.669340150299, "mercury": 990, "arsenic": 45.0, "antimony": 88, "thallium": 0.19, "priority": "HIGH", "color": "#d63e2a", "area": "ABWP01"}, {"id": "ABWP01-03", "lat": 39.0075495799947, "lon": -122.667932476644, "mercury": 21, "arsenic": 2.7, "antimony": 0.91, "thallium": 0.18, "priority": "LOW", "color": "#72af26", "area": "ABWP01"}, {"id": "ABWP01-04", "lat": 39.0071453680858, "lon": -122.667684592255, "mercury": 550, "arsenic": 4.1, "antimony": 3.6, "thallium": 0.18, "priority": "HIGH", "color": "#d63e2a", "area": "ABWP01"}, {"id": "ABWP01-05", "lat": 39.0067396027714, "lon": -122.669896404149, "mercury": 18, "arsenic": 2.1, "antimony": 0.93, "thallium": 0.17, "priority": "LOW", "color": "#72af26", "area": "ABWP01"}, {"id": "ABWP01-06", "lat": 39.0069174799061, "lon": -122.669274695302, "mercury": 1100, "arsenic": 1.4, "antimony": 1.2, "thallium": 0.22, "priority": "HIGH", "color": "#d63e2a", "area": "ABWP01"}, {"id": "ABWP01-07", "lat": 39.0067803811149, "lon": -122.668870411799, "mercury": 560, "arsenic": 0.9, "antimony": 1.1, "thallium": 0.17, "priority": "HIGH", "color": "#d63e2a", "area": "ABWP01"}, {"id": "ABWP01-08", "lat": 39.0068286657774, "lon": -122.668532493722, "mercury": 66, "arsenic": 1.3, "antimony": 0.89, "thallium": 0.14, "priority": "MEDIUM", "color": "#f0932b", "area": "ABWP01"}, {"id": "ABWP01-09", "lat": 39.006538404952, "lon": -122.670171560681, "mercury": 15, "arsenic": 2.2, "antimony": 0.92, "thallium": 0.3, "priority": "LOW", "color": "#72af26", "area": "ABWP01"}, {"id": "ABWP01-10", "lat": 39.0065895547403, "lon": -122.669775496228, "mercury": 42, "arsenic": 5.2, "antimony": 11, "thallium": 0.21, "priority": "MEDIUM", "color": "#f0932b", "area": "ABWP01"}, {"id": "ABWP01-11", "lat": 39.0064832859138, "lon": -122.669224265643, "mercury": 700, "arsenic": 1.7, "antimony": 0.92, "thallium": 0.27, "priority": "HIGH", "color": "#d63e2a", "area": "ABWP01"}, {"id": "ABWP01-12", "lat": 39.0066591809989, "lon": -122.668430402273, "mercury": 67, "arsenic": 0.84, "antimony": 1.4, "thallium": 0.062, "priority": "MEDIUM", "color": "#f0932b", "area": "ABWP01"}, {"id": "ABWP01-13", "lat": 39.0061396268048, "lon": -122.670177754725, "mercury": 18, "arsenic": 1.7, "antimony": 1.1, "thallium": 0.29, "priority": "LOW", "color": "#72af26", "area": "ABWP01"}, {"id": "ABWP01-14", "lat": 39.0062347170494, "lon": -122.669290027868, "mercury": 73, "arsenic": 2.0, "antimony": 0.93, "thallium": 0.19, "priority": "MEDIUM", "color": "#f0932b", "area": "ABWP01"}, {"id": "ABWP01-15", "lat": 39.0062378287727, "lon": -122.669012462979, "mercury": 180, "arsenic": 1.2, "antimony": 1, "thallium": 0.13, "priority": "MEDIUM", "color": "#f0932b", "area": "ABWP01"}, {"id": "ABWP01-16", "lat": 39.0062118225611, "lon": -122.668588508445, "mercury": 79, "arsenic": 0.7, "antimony": 1.2, "thallium": 0.14, "priority": "MEDIUM", "color": "#f0932b", "area": "ABWP01"}, {"id": "ABWP01-17", "lat": 39.0058718408512, "lon": -122.670965598196, "mercury": 13, "arsenic": 1.6, "antimony": 1.1, "thallium": 0.37, "priority": "LOW", "color": "#72af26", "area": "ABWP01"}, {"id": "ABWP01-18", "lat": 39.0059419214144, "lon": -122.670407761354, "mercury": 15, "arsenic": 1.9, "antimony": 1.1, "thallium": 0.21, "priority": "LOW", "color": "#72af26", "area": "ABWP01"}, {"id": "ABWP01-19", "lat": 39.0059954286826, "lon": -122.669340630634, "mercury": 190, "arsenic": 2.5, "antimony": 3.3, "thallium": 0.25, "priority": "MEDIUM", "color": "#f0932b", "area": "ABWP01"}, {"id": "ABWP01-20", "lat": 39.0058541335874, "lon": -122.668695106182, "mercury": 860, "arsenic": 1.6, "antimony": 1.2, "thallium": 0.16, "priority": "HIGH", "color": "#d63e2a", "area": "ABWP01"}, {"id": "ABWP01-21", "lat": 39.0058248250639, "lon": -122.668496175238, "mercury": 250, "arsenic": 0.75, "antimony": 1.7, "thallium": 0.086, "priority": "HIGH", "color": "#d63e2a", "area": "ABWP01"}, {"id": "ABWP01-22", "lat": 39.0055402580581, "lon": -122.671290869564, "mercury": 12, "arsenic": 2.3, "antimony": 1.2, "thallium": 0.2, "priority": "LOW", "color": "#72af26", "area": "ABWP01"}, {"id": "ABWP01-23", "lat": 39.0054243555602, "lon": -122.670547928259, "mercury": 130, "arsenic": 25.0, "antimony": 19, "thallium": 0.069, "priority": "MEDIUM", "color": "#f0932b", "area": "ABWP01"}, {"id": "ABWP01-24", "lat": 39.0055518788096, "lon": -122.670263878377, "mercury": 150, "arsenic": 6.2, "antimony": 7.7, "thallium": 0.15, "priority": "MEDIUM", "color": "#f0932b", "area": "ABWP01"}, {"id": "ABWP01-26", "lat": 39.0055503370111, "lon": -122.66874609639, "mercury": 1900, "arsenic": 1.8, "antimony": 2.4, "thallium": 0.1, "priority": "HIGH", "color": "#d63e2a", "area": "ABWP01"}, {"id": "ABWP01-27", "lat": 39.0051611876408, "lon": -122.668846236967, "mercury": 300, "arsenic": 2.4, "antimony": 2.1, "thallium": 0.13, "priority": "HIGH", "color": "#d63e2a", "area": "ABWP01"}, {"id": "ABWP01-28", "lat": 39.0050616739102, "lon": -122.668059897701, "mercury": 1000, "arsenic": 17.0, "antimony": 28, "thallium": 0.38, "priority": "HIGH", "color": "#d63e2a", "area": "ABWP01"}, {"id": "ABWP01-29", "lat": 39.0049314082585, "lon": -122.668524170383, "mercury": 180, "arsenic": 3.7, "antimony": 1.7, "thallium": 0.22, "priority": "MEDIUM", "color": "#f0932b", "area": "ABWP01"}, {"id": "ABWP01-30", "lat": 39.0046218961845, "lon": -122.668295662275, "mercury": 170, "arsenic": 3.0, "antimony": 1.1, "thallium": 0.23, "priority": "MEDIUM", "color": "#f0932b", "area": "ABWP01"}, {"id": "ABWP02-06", "lat": 39.0077377244773, "lon": -122.666085540427, "mercury": 240, "arsenic": 73.0, "antimony": 150, "thallium": 0.18, "priority": "HIGH", "color": "#d63e2a", "area": "ABWP02"}, {"id": "ABWP02-07", "lat": 39.007861143897, "lon": -122.665725704378, "mercury": 150, "arsenic": 6.0, "antimony": 2.8, "thallium": 0.22, "priority": "MEDIUM", "color": "#f0932b", "area": "ABWP02"}, {"id": "ABWP02-08", "lat": 39.0075612881797, "lon": -122.665515674961, "mercury": 71, "arsenic": 7.3, "antimony": 11, "thallium": 0.22, "priority": "MEDIUM", "color": "#f0932b", "area": "ABWP02"}, {"id": "ABWP02-09", "lat": 39.0072413067667, "lon": -122.665502563968, "mercury": 150, "arsenic": 4.6, "antimony": 1.4, "thallium": 0.13, "priority": "MEDIUM", "color": "#f0932b", "area": "ABWP02"}, {"id": "ABWP02-10", "lat": 39.0070201417899, "lon": -122.665768079405, "mercury": 84, "arsenic": 3.5, "antimony": 1.5, "thallium": 0.17, "priority": "MEDIUM", "color": "#f0932b", "area": "ABWP02"}, {"id": "ABWP02-11", "lat": 39.0066955368688, "lon": -122.66678842294, "mercury": 180, "arsenic": 1.4, "antimony": 1.6, "thallium": 0.11, "priority": "MEDIUM", "color": "#f0932b", "area": "ABWP02"}, {"id": "ABWP02-12", "lat": 39.006756126569, "lon": -122.666573188329, "mercury": 87, "arsenic": 1.7, "antimony": 1.5, "thallium": 0.21, "priority": "MEDIUM", "color": "#f0932b", "area": "ABWP02"}, {"id": "ABWP02-13", "lat": 39.006643297853, "lon": -122.666102913606, "mercury": 61, "arsenic": 1.5, "antimony": 1.1, "thallium": 0.22, "priority": "MEDIUM", "color": "#f0932b", "area": "ABWP02"}, {"id": "ABWP02-14", "lat": 39.0066653925818, "lon": -122.665912932291, "mercury": 470, "arsenic": 2.1, "antimony": 1, "thallium": 0.18, "priority": "HIGH", "color": "#d63e2a", "area": "ABWP02"}, {"id": "ABWP02-15", "lat": 39.0068355740038, "lon": -122.665558947417, "mercury": 36, "arsenic": 2.6, "antimony": 1.1, "thallium": 0.16, "priority": "MEDIUM", "color": "#f0932b", "area": "ABWP02"}, {"id": "ABWP02-16", "lat": 39.0064706825048, "lon": -122.666955937698, "mercury": 1800, "arsenic": 0.39, "antimony": 1, "thallium": 0.42, "priority": "HIGH", "color": "#d63e2a", "area": "ABWP02"}, {"id": "ABWP02-17", "lat": 39.00646213935, "lon": -122.666538142676, "mercury": 120, "arsenic": 0.81, "antimony": 0.39, "thallium": 0.1, "priority": "MEDIUM", "color": "#f0932b", "area": "ABWP02"}, {"id": "ABWP02-18", "lat": 39.0064029036921, "lon": -122.666183457338, "mercury": 700, "arsenic": 0.65, "antimony": 1.7, "thallium": 0.84, "priority": "HIGH", "color": "#d63e2a", "area": "ABWP02"}, {"id": "ABWP02-19", "lat": 39.0064851265372, "lon": -122.665219767343, "mercury": 38, "arsenic": 2.7, "antimony": 1.1, "thallium": 0.12, "priority": "MEDIUM", "color": "#f0932b", "area": "ABWP02"}, {"id": "ABWP02-20", "lat": 39.0061432832195, "lon": -122.665790707727, "mercury": 280, "arsenic": 1.1, "antimony": 0.53, "thallium": 0.18, "priority": "HIGH", "color": "#d63e2a", "area": "ABWP02"}, {"id": "ABWP02-21", "lat": 39.0062087938604, "lon": -122.665368221157, "mercury": 35, "arsenic": 1.9, "antimony": 1.1, "thallium": 0.11, "priority": "LOW", "color": "#72af26", "area": "ABWP02"}, {"id": "ABWP02-22", "lat": 39.0059501904703, "lon": -122.666054193426, "mercury": 830, "arsenic": 1.5, "antimony": 1.3, "thallium": 0.13, "priority": "HIGH", "color": "#d63e2a", "area": "ABWP02"}, {"id": "ABWP02-23", "lat": 39.00605032714, "lon": -122.665907204376, "mercury": 390, "arsenic": 1.5, "antimony": 1.1, "thallium": 0.16, "priority": "HIGH", "color": "#d63e2a", "area": "ABWP02"}, {"id": "ABWP02-24", "lat": 39.0059621193256, "lon": -122.6654042948, "mercury": 60, "arsenic": 2.0, "antimony": 1.1, "thallium": 0.2, "priority": "MEDIUM", "color": "#f0932b", "area": "ABWP02"}, {"id": "ABWP02-25", "lat": 39.0056157306986, "lon": -122.666677766283, "mercury": 820, "arsenic": 0.67, "antimony": 1.1, "thallium": 0.041, "priority": "HIGH", "color": "#d63e2a", "area": "ABWP02"}, {"id": "ABWP02-26", "lat": 39.0057140087177, "lon": -122.666256815418, "mercury": 2700, "arsenic": 3.7, "antimony": 4.5, "thallium": 0.046, "priority": "HIGH", "color": "#d63e2a", "area": "ABWP02"}, {"id": "ABWP02-27", "lat": 39.0053815765848, "lon": -122.666257040122, "mercury": 290, "arsenic": 1.7, "antimony": 0.72, "thallium": 0.14, "priority": "HIGH", "color": "#d63e2a", "area": "ABWP02"}, {"id": "ABWP02-28", "lat": 39.0054541287926, "lon": -122.665326232546, "mercury": 94, "arsenic": 1.7, "antimony": 0.71, "thallium": 0.15, "priority": "MEDIUM", "color": "#f0932b", "area": "ABWP02"}, {"id": "ABWP02-29", "lat": 39.0051410522782, "lon": -122.666306292323, "mercury": 180, "arsenic": 1.7, "antimony": 0.7, "thallium": 0.13, "priority": "MEDIUM", "color": "#f0932b", "area": "ABWP02"}, {"id": "ABWP02-30", "lat": 39.0051985431479, "lon": -122.665462531262, "mercury": 85, "arsenic": 1.5, "antimony": 1.3, "thallium": 0.12, "priority": "MEDIUM", "color": "#f0932b", "area": "ABWP02"}];
+var testpits = [{"id": "ABWP02-01-TP1", "lat": 39.00749, "lon": -122.66675, "depth": 4, "ph": "5.38-5.51", "notes": "Andesite contact at 0.5 ft"}, {"id": "ABWP02-02-TP1", "lat": 39.00755, "lon": -122.66541, "depth": 4, "ph": "4.76-4.81", "notes": "Lots of rock/boulders"}, {"id": "ABWP02-03-TP1", "lat": 39.00642, "lon": -122.66579, "depth": 4, "ph": "5.42-5.61", "notes": "Andesite contact 0.25-0.5 ft"}, {"id": "ABWP02-04-TP1", "lat": 39.00594, "lon": -122.66631, "depth": 4, "ph": "3.86-4.35", "notes": "Most acidic - possible waste rock"}, {"id": "ABWP02-05-TP1", "lat": 39.00571, "lon": -122.66558, "depth": 4, "ph": "4.99-5.06", "notes": "Sulfur smell at 4ft"}];
 
 // ============================================================
 // STATE
 // ============================================================
-let map, userMarker, accuracyCircle, navLine;
-let userLat = null, userLon = null, userAcc = null, userHeading = null;
-let selectedTarget = null;
-let watchId = null;
-let compassAvailable = false;
-let gpsReady = false;
-let visited = {};
-let arrivalShown = {};
-let r2Markers = {};
-let r2Layer, histLayer, eaLayer;
-
-const settings = {
-  sunlight: false,
-  compassHUD: true,
-  autoCenter: true,
-  showHistorical: false,
-  showEA: false,
-  satellite: true,
-  arrivalDist: 15
+const state = {
+  userLat: null, userLon: null, accuracy: null, heading: null,
+  selectedPoint: null, watchId: null, orientationActive: false,
+  autoCenter: true, vibrateOnArrival: true, autoNearest: false,
+  highContrast: false, units: 'feet', filter: 'all', searchQuery: '',
+  visited: JSON.parse(localStorage.getItem('sbmm_visited') || '{}'),
+  visitLog: JSON.parse(localStorage.getItem('sbmm_visitlog') || '[]'),
+  arrivedDismissed: {}, lastVibrate: 0
 };
 
 // ============================================================
-// INIT
+// MAP SETUP
 // ============================================================
-function init() {
-  loadVisited();
-  loadSettings();
-  initMap();
-  initGPS();
-  initCompass();
-  renderSampleList();
-  updateProgress();
-  applySettings();
+const map = L.map('map', {zoomControl: false, attributionControl: false}).setView([39.0065, -122.6675], 17);
+
+// Satellite tile layer
+L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+  maxZoom: 20, attribution: 'Esri Satellite'
+}).addTo(map);
+
+// Optional labels overlay
+L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', {
+  maxZoom: 20, opacity: 0.7
+}).addTo(map);
+
+// Layer groups
+const layers = {
+  r2Proposed: L.layerGroup().addTo(map),
+  r2Stepout: L.layerGroup().addTo(map),
+  visited: L.layerGroup().addTo(map),
+  jacobs: L.layerGroup(),
+  ea: L.layerGroup(),
+  navLine: L.layerGroup().addTo(map)
+};
+
+// User position marker
+let userMarker = null;
+let accuracyCircle = null;
+let headingCone = null;
+
+// ============================================================
+// UTILITY FUNCTIONS
+// ============================================================
+function toRad(d){return d*Math.PI/180}
+function toDeg(r){return r*180/Math.PI}
+
+function haversine(lat1,lon1,lat2,lon2){
+  const R=6371000;
+  const dLat=toRad(lat2-lat1),dLon=toRad(lon2-lon1);
+  const a=Math.sin(dLat/2)*Math.sin(dLat/2)+Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLon/2)*Math.sin(dLon/2);
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
 }
 
-function initMap() {
-  const center = [39.00650, -122.66750];
-  map = L.map('map', {
-    center: center, zoom: 17, zoomControl: false,
-    attributionControl: true, maxZoom: 20
-  });
+function bearing(lat1,lon1,lat2,lon2){
+  const dLon=toRad(lon2-lon1);
+  const y=Math.sin(dLon)*Math.cos(toRad(lat2));
+  const x=Math.cos(toRad(lat1))*Math.sin(toRad(lat2))-Math.sin(toRad(lat1))*Math.cos(toRad(lat2))*Math.cos(dLon);
+  return(toDeg(Math.atan2(y,x))+360)%360;
+}
 
-  // Tile layers
-  window.satelliteLayer = L.tileLayer(
-    'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-    { maxZoom: 20, attribution: 'Esri Satellite' }
-  );
-  window.streetLayer = L.tileLayer(
-    'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-    { maxZoom: 19, attribution: 'OSM' }
-  );
+function formatDist(meters){
+  if(state.units==='feet'){
+    const ft=meters*3.28084;
+    return ft<1000?Math.round(ft)+' ft':(ft/5280).toFixed(2)+' mi';
+  }
+  return meters<1000?Math.round(meters)+' m':(meters/1000).toFixed(2)+' km';
+}
+
+function distClass(meters){
+  if(meters>60)return'far';if(meters>15)return'medium';return'close';
+}
+
+function bearingToCardinal(b){
+  const dirs=['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
+  return dirs[Math.round(b/22.5)%16];
+}
+
+function bearingArrow(b){
+  if(b>=337.5||b<22.5)return'\u2191';if(b>=22.5&&b<67.5)return'\u2197';
+  if(b>=67.5&&b<112.5)return'\u2192';if(b>=112.5&&b<157.5)return'\u2198';
+  if(b>=157.5&&b<202.5)return'\u2193';if(b>=202.5&&b<247.5)return'\u2199';
+  if(b>=247.5&&b<292.5)return'\u2190';return'\u2196';
+}
+
+function saveVisited(){
+  localStorage.setItem('sbmm_visited',JSON.stringify(state.visited));
+  localStorage.setItem('sbmm_visitlog',JSON.stringify(state.visitLog));
+}
+
+function markVisited(pointId){
+  if(!state.visited[pointId]){
+    state.visited[pointId]=new Date().toISOString();
+    state.visitLog.push({id:pointId,time:state.visited[pointId],lat:state.userLat,lon:state.userLon});
+    saveVisited();
+    updateMarkers();
+    updatePointList();
+    updateProgress();
+  }
+}
+
+// ============================================================
+// MARKERS
+// ============================================================
+const markerRefs = {};
+
+function createPointIcon(point){
+  const isVisited = state.visited[point.id];
+  const isSelected = state.selectedPoint && state.selectedPoint.id === point.id;
+  let color = point.type==='proposed'?'#6366f1':'#f59e0b';
+  if(isVisited) color='#10b981';
+  const size = isSelected ? 16 : 10;
+  const border = isSelected ? '3px solid white' : '2px solid rgba(255,255,255,0.8)';
+  const shadow = isSelected ? '0 0 12px rgba(99,102,241,0.8)' : '0 1px 4px rgba(0,0,0,0.5)';
+  return L.divIcon({
+    className:'',
+    html:'<div style="width:'+size+'px;height:'+size+'px;border-radius:50%;background:'+color+';border:'+border+';box-shadow:'+shadow+';"></div>',
+    iconSize:[size,size],iconAnchor:[size/2,size/2]
+  });
+}
+
+function addR2Markers(){
+  Object.values(markerRefs).forEach(m=>{
+    if(m._map)m._map.removeLayer(m);
+  });
   
-  if (settings.satellite) window.satelliteLayer.addTo(map);
-  else window.streetLayer.addTo(map);
-
-  // R2 points layer
-  r2Layer = L.layerGroup().addTo(map);
-  R2_POINTS.forEach(p => {
-    const isVisited = visited[p.id];
-    const cls = isVisited ? 'visited-marker' : p.type;
-    const shortId = p.id.replace('ABP-R2-','');
+  r2Points.forEach(p=>{
+    const isVisited = state.visited[p.id];
+    const layer = isVisited ? layers.visited : (p.type==='proposed' ? layers.r2Proposed : layers.r2Stepout);
+    const marker = L.marker([p.lat,p.lon],{icon:createPointIcon(p)});
     
-    const icon = L.divIcon({
-      className: '',
-      html: `<div class="marker-r2 ${cls}" data-id="${p.id}">${shortId}</div>`,
-      iconSize: [24, 24], iconAnchor: [12, 12]
-    });
+    // Popup
+    const dist = state.userLat!=null ? formatDist(haversine(state.userLat,state.userLon,p.lat,p.lon)) : '--';
+    marker.bindPopup(
+      '<div style="font-family:sans-serif;min-width:150px">'+
+      '<b style="font-size:14px">'+p.id+'</b><br>'+
+      '<span style="font-size:12px;color:#666">Type: '+p.type+' | Depth: '+p.depth+'</span><br>'+
+      '<span style="font-size:12px;color:#666">Area: '+p.area+'</span><br>'+
+      '<span style="font-size:12px">Distance: '+dist+'</span><br>'+
+      '<span style="font-size:11px;color:#999">'+p.lat.toFixed(6)+', '+p.lon.toFixed(6)+'</span>'+
+      '</div>',
+      {closeButton:false,className:'custom-popup'}
+    );
     
-    const marker = L.marker([p.lat, p.lon], { icon }).addTo(r2Layer);
-    marker.on('click', () => selectTarget(p.id));
-    r2Markers[p.id] = marker;
+    marker.on('click',function(){selectPoint(p)});
+    marker.addTo(layer);
+    markerRefs[p.id]=marker;
   });
-
-  // Historical layers (hidden by default)
-  histLayer = L.layerGroup();
-  eaLayer = L.layerGroup();
-
-  // Nav line
-  navLine = L.polyline([], { color: '#00e676', weight: 2, dashArray: '8,8', opacity: 0.7 }).addTo(map);
 }
 
-function initGPS() {
-  if (!navigator.geolocation) {
-    document.querySelector('#gps-overlay .gps-text').textContent = 'GPS NOT AVAILABLE';
+function updateMarkers(){
+  // Remove all and re-add
+  layers.r2Proposed.clearLayers();
+  layers.r2Stepout.clearLayers();
+  layers.visited.clearLayers();
+  addR2Markers();
+}
+
+function addHistoricalMarkers(){
+  // Jacobs 2025
+  if(typeof samples2025!=='undefined'){
+    samples2025.forEach(s=>{
+      L.circleMarker([s.lat,s.lon],{radius:4,fillColor:'#3388ff',color:'white',weight:1,fillOpacity:0.7})
+        .bindPopup('<b>'+s.label+'</b><br>Jacobs 2025')
+        .addTo(layers.jacobs);
+    });
+  }
+  // EA
+  if(typeof eaSamples!=='undefined'){
+    eaSamples.forEach(s=>{
+      L.circleMarker([s.lat,s.lon],{radius:4,fillColor:'#d63e2a',color:'white',weight:1,fillOpacity:0.7})
+        .bindPopup('<b>'+s.id+'</b><br>EA Historical<br>Hg: '+(s.mercury||'--')+' mg/kg')
+        .addTo(layers.ea);
+    });
+  }
+}
+
+// ============================================================
+// POINT SELECTION & NAVIGATION
+// ============================================================
+function selectPoint(p){
+  state.selectedPoint=p;
+  document.getElementById('navContent').style.display='';
+  document.getElementById('navEmpty').style.display='none';
+  document.getElementById('navTargetName').textContent=p.id;
+  updateNavHUD();
+  updateMarkers();
+  updateNavLine();
+  
+  // Highlight in list
+  document.querySelectorAll('.point-item').forEach(el=>{
+    el.classList.toggle('selected',el.dataset.id===p.id);
+  });
+}
+
+function updateNavHUD(){
+  const p=state.selectedPoint;
+  if(!p||state.userLat==null)return;
+  
+  const dist=haversine(state.userLat,state.userLon,p.lat,p.lon);
+  const bear=bearing(state.userLat,state.userLon,p.lat,p.lon);
+  
+  const distEl=document.getElementById('navDistance');
+  distEl.textContent=formatDist(dist);
+  distEl.className='nav-distance '+distClass(dist);
+  
+  document.getElementById('navBearing').textContent=bearingToCardinal(bear)+' ('+Math.round(bear)+'\u00B0)';
+  
+  // ETA at walking speed (4 km/h)
+  const etaMin=Math.round(dist/66.67);
+  document.getElementById('navEta').textContent=etaMin>0?'~'+etaMin+' min walk':'Almost there!';
+  
+  // Compass arrow - rotate to bearing relative to device heading
+  let rotation=bear;
+  if(state.heading!=null){rotation=bear-state.heading}
+  document.getElementById('compassArrow').style.transform='translate(-50%,-80%) rotate('+rotation+'deg)';
+  
+  // Arrival detection
+  if(dist<5&&!state.arrivedDismissed[p.id]){
+    showArrival(p);
+  }
+}
+
+function updateNavLine(){
+  layers.navLine.clearLayers();
+  const p=state.selectedPoint;
+  if(!p||state.userLat==null)return;
+  
+  L.polyline([[state.userLat,state.userLon],[p.lat,p.lon]],{
+    color:'#6366f1',weight:3,opacity:0.8,dashArray:'8,8'
+  }).addTo(layers.navLine);
+}
+
+function showArrival(p){
+  document.getElementById('arrivalOverlay').classList.add('show');
+  document.getElementById('arrivalPointName').textContent='Arrived at '+p.id+'!';
+  if(state.vibrateOnArrival&&navigator.vibrate&&Date.now()-state.lastVibrate>5000){
+    navigator.vibrate([200,100,200,100,400]);
+    state.lastVibrate=Date.now();
+  }
+}
+
+// ============================================================
+// POINT LIST
+// ============================================================
+function updatePointList(){
+  const list=document.getElementById('pointList');
+  let points=r2Points.slice();
+  
+  // Filter
+  if(state.filter==='proposed')points=points.filter(p=>p.type==='proposed');
+  else if(state.filter==='stepout')points=points.filter(p=>p.type==='stepout');
+  else if(state.filter==='todo')points=points.filter(p=>!state.visited[p.id]);
+  
+  // Search
+  if(state.searchQuery){
+    const q=state.searchQuery.toLowerCase();
+    points=points.filter(p=>p.id.toLowerCase().includes(q)||p.type.includes(q)||p.area.toLowerCase().includes(q));
+  }
+  
+  // Sort by distance if we have GPS
+  if(state.userLat!=null){
+    points.forEach(p=>{p._dist=haversine(state.userLat,state.userLon,p.lat,p.lon)});
+    points.sort((a,b)=>a._dist-b._dist);
+  }
+  
+  let html='';
+  points.forEach(p=>{
+    const dist=p._dist!=null?p._dist:null;
+    const bear=state.userLat!=null?bearing(state.userLat,state.userLon,p.lat,p.lon):0;
+    const isVisited=!!state.visited[p.id];
+    const isSelected=state.selectedPoint&&state.selectedPoint.id===p.id;
+    
+    html+='<div class="point-item'+(isSelected?' selected':'')+'" data-id="'+p.id+'">'+
+      '<div class="point-type-dot '+p.type+'"></div>'+
+      '<div class="point-info">'+
+        '<div class="point-id">'+p.id+'</div>'+
+        '<div class="point-meta">'+p.type+' \u2022 '+p.depth+' \u2022 '+p.area+'</div>'+
+      '</div>';
+    
+    if(dist!=null){
+      html+='<div class="point-distance">'+
+        '<span class="point-dist-val '+distClass(dist)+'">'+formatDist(dist)+'</span>'+
+        '<span class="point-bearing-arrow" style="transform:rotate('+bear+'deg)">\u2191</span>'+
+      '</div>';
+    }
+    
+    html+='<div class="point-status'+(isVisited?' visited':'')+'" data-point="'+p.id+'">'+(isVisited?'\u2713':'')+'</div>'+
+    '</div>';
+  });
+  
+  list.innerHTML=html;
+  
+  // Click handlers
+  list.querySelectorAll('.point-item').forEach(el=>{
+    el.addEventListener('click',function(e){
+      if(e.target.closest('.point-status'))return;
+      const pt=r2Points.find(p=>p.id===this.dataset.id);
+      if(pt)selectPoint(pt);
+    });
+  });
+  
+  list.querySelectorAll('.point-status').forEach(el=>{
+    el.addEventListener('click',function(e){
+      e.stopPropagation();
+      const id=this.dataset.point;
+      if(state.visited[id]){
+        delete state.visited[id];
+        saveVisited();
+      }else{
+        markVisited(id);
+      }
+      updateMarkers();
+      updatePointList();
+      updateProgress();
+    });
+  });
+  
+  // Update sheet title
+  document.getElementById('sheetTitle').textContent='Nearby Points ('+points.length+')';
+}
+
+function updateProgress(){
+  const total=r2Points.length;
+  const done=Object.keys(state.visited).filter(id=>r2Points.find(p=>p.id===id)).length;
+  document.getElementById('progressBadge').textContent=done+'/'+total;
+}
+
+// ============================================================
+// GPS TRACKING
+// ============================================================
+function startGPS(){
+  if(!navigator.geolocation){
+    document.getElementById('gpsText').textContent='No GPS';
     return;
   }
   
-  watchId = navigator.geolocation.watchPosition(
-    pos => {
-      userLat = pos.coords.latitude;
-      userLon = pos.coords.longitude;
-      userAcc = pos.coords.accuracy;
-      if (pos.coords.heading && !isNaN(pos.coords.heading)) {
-        userHeading = pos.coords.heading;
+  state.watchId=navigator.geolocation.watchPosition(
+    function(pos){
+      state.userLat=pos.coords.latitude;
+      state.userLon=pos.coords.longitude;
+      state.accuracy=pos.coords.accuracy;
+      if(pos.coords.heading!=null&&!isNaN(pos.coords.heading)){
+        state.heading=pos.coords.heading;
       }
       
-      if (!gpsReady) {
-        gpsReady = true;
-        document.getElementById('gps-overlay').classList.add('hidden');
-        if (settings.autoCenter) map.setView([userLat, userLon], 18);
+      // Update GPS indicator
+      const dot=document.getElementById('gpsDot');
+      dot.classList.add('active');
+      const accFt=Math.round(state.accuracy*3.28084);
+      document.getElementById('gpsText').textContent='\u00B1'+accFt+'ft';
+      
+      // Update user marker
+      updateUserMarker();
+      
+      // Auto-center
+      if(state.autoCenter){
+        map.setView([state.userLat,state.userLon],map.getZoom());
       }
       
-      updateUserPosition();
-      updateGPSBars();
-      updateNavigation();
-      updateSampleDistances();
+      // Update nav
+      updateNavHUD();
+      updateNavLine();
+      updatePointList();
+      
+      // Auto-select nearest unvisited
+      if(state.autoNearest&&!state.selectedPoint){
+        const unvisited=r2Points.filter(p=>!state.visited[p.id]);
+        if(unvisited.length>0){
+          unvisited.forEach(p=>{p._dist=haversine(state.userLat,state.userLon,p.lat,p.lon)});
+          unvisited.sort((a,b)=>a._dist-b._dist);
+          selectPoint(unvisited[0]);
+        }
+      }
     },
-    err => {
-      document.querySelector('#gps-overlay .gps-text').textContent = 'GPS ERROR: ' + err.message;
+    function(err){
+      document.getElementById('gpsDot').classList.remove('active');
+      document.getElementById('gpsText').textContent='GPS Error';
+      console.warn('GPS error:',err);
     },
-    { enableHighAccuracy: true, maximumAge: 2000, timeout: 10000 }
+    {enableHighAccuracy:true,maximumAge:2000,timeout:10000}
   );
 }
 
-function initCompass() {
-  if (typeof DeviceOrientationEvent !== 'undefined') {
-    if (typeof DeviceOrientationEvent.requestPermission === 'function') {
-      // iOS 13+ needs permission
-      document.addEventListener('click', function requestCompass() {
-        DeviceOrientationEvent.requestPermission().then(state => {
-          if (state === 'granted') {
-            window.addEventListener('deviceorientationabsolute', handleCompass, true);
-            window.addEventListener('deviceorientation', handleCompass, true);
-            compassAvailable = true;
-          }
-        }).catch(()=>{});
-        document.removeEventListener('click', requestCompass);
-      }, { once: true });
-    } else {
-      window.addEventListener('deviceorientationabsolute', handleCompass, true);
-      window.addEventListener('deviceorientation', handleCompass, true);
-    }
-  }
-}
-
-function handleCompass(e) {
-  let heading = null;
-  if (e.webkitCompassHeading !== undefined) {
-    heading = e.webkitCompassHeading; // iOS
-  } else if (e.alpha !== null) {
-    heading = e.absolute ? (360 - e.alpha) : e.alpha;
-  }
-  if (heading !== null) {
-    userHeading = heading;
-    compassAvailable = true;
-    updateCompassArrow();
-  }
-}
-
-// ============================================================
-// MAP UPDATES
-// ============================================================
-function updateUserPosition() {
-  if (userLat === null) return;
+function updateUserMarker(){
+  if(state.userLat==null)return;
   
-  if (!userMarker) {
-    userMarker = L.marker([userLat, userLon], {
-      icon: L.divIcon({ className: '', html: '<div class="user-marker"></div>', iconSize: [18,18], iconAnchor: [9,9] }),
-      zIndexOffset: 1000
+  if(!userMarker){
+    userMarker=L.marker([state.userLat,state.userLon],{
+      icon:L.divIcon({
+        className:'user-marker',
+        html:'<div style="position:relative"><div style="width:16px;height:16px;border-radius:50%;background:#4285f4;border:3px solid white;box-shadow:0 0 8px rgba(66,133,244,0.6)"></div><div style="position:absolute;top:50%;left:50%;width:40px;height:40px;margin:-20px;border-radius:50%;background:rgba(66,133,244,0.15);animation:pulse 2s infinite"></div></div>',
+        iconSize:[16,16],iconAnchor:[8,8]
+      }),
+      zIndexOffset:1000
     }).addTo(map);
     
-    accuracyCircle = L.circle([userLat, userLon], {
-      radius: userAcc, className: 'accuracy-circle', interactive: false
+    accuracyCircle=L.circle([state.userLat,state.userLon],{
+      radius:state.accuracy||10,fillColor:'#4285f4',fillOpacity:0.08,
+      stroke:true,color:'#4285f4',weight:1,opacity:0.3
     }).addTo(map);
-  } else {
-    userMarker.setLatLng([userLat, userLon]);
-    accuracyCircle.setLatLng([userLat, userLon]);
-    accuracyCircle.setRadius(userAcc);
+  }else{
+    userMarker.setLatLng([state.userLat,state.userLon]);
+    accuracyCircle.setLatLng([state.userLat,state.userLon]);
+    accuracyCircle.setRadius(state.accuracy||10);
   }
-  
-  if (settings.autoCenter && gpsReady) {
-    map.panTo([userLat, userLon], { animate: true, duration: 0.5 });
-  }
-}
-
-function updateGPSBars() {
-  const bars = [1,2,3,4].map(i => document.getElementById('bar'+i));
-  let active = 0;
-  if (userAcc !== null) {
-    if (userAcc < 5) active = 4;
-    else if (userAcc < 10) active = 3;
-    else if (userAcc < 25) active = 2;
-    else active = 1;
-  }
-  bars.forEach((b,i) => b.classList.toggle('active', i < active));
-  document.getElementById('gps-acc').textContent = userAcc ? `±${Math.round(userAcc * 3.281)}ft` : '--';
 }
 
 // ============================================================
-// NAVIGATION
+// DEVICE ORIENTATION (COMPASS)
 // ============================================================
-function selectTarget(id) {
-  selectedTarget = id;
-  const p = R2_POINTS.find(x => x.id === id);
-  
-  // Update marker visuals
-  document.querySelectorAll('.marker-r2.selected').forEach(el => el.classList.remove('selected'));
-  const el = document.querySelector(`.marker-r2[data-id="${id}"]`);
-  if (el) el.classList.add('selected');
-  
-  // Enable compass HUD
-  const hud = document.getElementById('compass-hud');
-  if (settings.compassHUD) {
-    hud.classList.add('active');
-    document.body.classList.add('compass-active');
-  }
-  document.getElementById('hud-target-name').textContent = id.replace('ABP-R2-','');
-  
-  // Center on target
-  if (p) map.panTo([p.lat, p.lon], { animate: true });
-  
-  // Zoom to show both user and target
-  if (userLat !== null && p) {
-    const bounds = L.latLngBounds([[userLat, userLon], [p.lat, p.lon]]);
-    map.fitBounds(bounds.pad(0.3));
-  }
-  
-  updateNavigation();
-  switchTab('map');
-}
-
-function updateNavigation() {
-  if (!selectedTarget || userLat === null) return;
-  const p = R2_POINTS.find(x => x.id === selectedTarget);
-  if (!p) return;
-  
-  const dist = haversine(userLat, userLon, p.lat, p.lon);
-  const distFt = dist * 3.281;
-  const bearing = getBearing(userLat, userLon, p.lat, p.lon);
-  
-  // Update nav line
-  navLine.setLatLngs([[userLat, userLon], [p.lat, p.lon]]);
-  
-  // Update HUD
-  const distEl = document.getElementById('hud-distance');
-  if (distFt > 5280) {
-    distEl.textContent = (distFt / 5280).toFixed(2);
-    document.getElementById('hud-unit').textContent = 'mi';
-  } else {
-    distEl.textContent = Math.round(distFt);
-    document.getElementById('hud-unit').textContent = 'ft';
-  }
-  
-  // Color code distance
-  distEl.className = 'distance-display';
-  if (distFt > 200) distEl.classList.add('dist-far');
-  else if (distFt > 50) distEl.classList.add('dist-mid');
-  else distEl.classList.add('dist-near');
-  
-  // Bearing text
-  document.getElementById('hud-bearing').textContent = bearingToCardinal(bearing);
-  
-  // ETA (walking ~3 ft/s)
-  const etaSec = distFt / 3;
-  if (etaSec < 60) document.getElementById('hud-eta').textContent = `~${Math.round(etaSec)}s walk`;
-  else document.getElementById('hud-eta').textContent = `~${Math.round(etaSec/60)}min walk`;
-  
-  // Compass arrow rotation
-  updateCompassArrow();
-  
-  // Arrival check
-  if (distFt <= settings.arrivalDist && !arrivalShown[selectedTarget]) {
-    showArrival(selectedTarget);
+function startCompass(){
+  if(typeof DeviceOrientationEvent!=='undefined'&&typeof DeviceOrientationEvent.requestPermission==='function'){
+    // iOS 13+
+    DeviceOrientationEvent.requestPermission().then(function(response){
+      if(response==='granted'){
+        window.addEventListener('deviceorientationabsolute',handleOrientation,true);
+        window.addEventListener('deviceorientation',handleOrientation,true);
+      }
+    }).catch(console.error);
+  }else{
+    window.addEventListener('deviceorientationabsolute',handleOrientation,true);
+    window.addEventListener('deviceorientation',handleOrientation,true);
   }
 }
 
-function updateCompassArrow() {
-  if (selectedTarget === null || userLat === null) return;
-  const p = R2_POINTS.find(x => x.id === selectedTarget);
-  if (!p) return;
-  
-  const bearing = getBearing(userLat, userLon, p.lat, p.lon);
-  let rotation = bearing;
-  if (userHeading !== null) {
-    rotation = bearing - userHeading;
+function handleOrientation(e){
+  let heading=null;
+  if(e.webkitCompassHeading!=null){
+    heading=e.webkitCompassHeading;
+  }else if(e.alpha!=null){
+    heading=(360-e.alpha)%360;
   }
-  
-  document.getElementById('compass-arrow').style.transform = 
-    `translate(-50%,-50%) rotate(${rotation}deg)`;
+  if(heading!=null){
+    state.heading=heading;
+    state.orientationActive=true;
+    updateNavHUD();
+  }
 }
 
 // ============================================================
-// ARRIVAL
+// UI EVENT HANDLERS
 // ============================================================
-function showArrival(id) {
-  arrivalShown[id] = true;
-  document.getElementById('arrival-point-name').textContent = id;
-  document.getElementById('arrival-overlay').classList.add('active');
-  
-  // Vibrate
-  if (navigator.vibrate) navigator.vibrate([200, 100, 200, 100, 400]);
-}
 
-function markVisitedAndDismiss() {
-  if (selectedTarget) {
-    visited[selectedTarget] = { time: new Date().toISOString(), lat: userLat, lon: userLon, acc: userAcc };
-    saveVisited();
-    updateMarkerVisual(selectedTarget);
-    updateProgress();
-    renderSampleList();
-  }
-  dismissArrival();
-  // Auto-select next nearest unvisited
-  selectNearestUnvisited();
-}
-
-function dismissArrival() {
-  document.getElementById('arrival-overlay').classList.remove('active');
-}
-
-function selectNearestUnvisited() {
-  if (userLat === null) return;
-  let nearest = null, nearDist = Infinity;
-  R2_POINTS.forEach(p => {
-    if (visited[p.id]) return;
-    const d = haversine(userLat, userLon, p.lat, p.lon);
-    if (d < nearDist) { nearDist = d; nearest = p.id; }
-  });
-  if (nearest) selectTarget(nearest);
-}
-
-function updateMarkerVisual(id) {
-  const marker = r2Markers[id];
-  if (!marker) return;
-  const shortId = id.replace('ABP-R2-','');
-  const icon = L.divIcon({
-    className: '',
-    html: `<div class="marker-r2 visited-marker" data-id="${id}">${shortId}</div>`,
-    iconSize: [24, 24], iconAnchor: [12, 12]
-  });
-  marker.setIcon(icon);
-}
-
-// ============================================================
-// SAMPLE LIST
-// ============================================================
-function renderSampleList(filter='all', search='') {
-  const list = document.getElementById('sample-list');
-  let points = [...R2_POINTS];
-  
-  // Filter
-  if (filter === 'proposed') points = points.filter(p => p.type === 'proposed');
-  else if (filter === 'stepout') points = points.filter(p => p.type === 'stepout');
-  else if (filter === 'unvisited') points = points.filter(p => !visited[p.id]);
-  else if (filter === 'visited') points = points.filter(p => visited[p.id]);
-  
-  // Search
-  if (search) {
-    const s = search.toLowerCase();
-    points = points.filter(p => p.id.toLowerCase().includes(s));
-  }
-  
-  // Sort by distance if GPS available
-  if (userLat !== null) {
-    points.sort((a,b) => {
-      const da = haversine(userLat, userLon, a.lat, a.lon);
-      const db = haversine(userLat, userLon, b.lat, b.lon);
-      return da - db;
-    });
-  }
-  
-  list.innerHTML = points.map(p => {
-    const isVisited = visited[p.id];
-    const cls = isVisited ? 'visited' : p.type;
-    const shortId = p.id.replace('ABP-R2-','');
-    let distHtml = '--', bearHtml = '';
+// Tab bar
+document.querySelectorAll('.tab').forEach(function(tab){
+  tab.addEventListener('click',function(){
+    const t=this.dataset.tab;
+    document.querySelectorAll('.tab').forEach(function(el){el.classList.remove('active')});
+    this.classList.add('active');
     
-    if (userLat !== null) {
-      const d = haversine(userLat, userLon, p.lat, p.lon);
-      const dFt = Math.round(d * 3.281);
-      const b = getBearing(userLat, userLon, p.lat, p.lon);
-      const distCls = dFt > 200 ? 'dist-far' : dFt > 50 ? 'dist-mid' : 'dist-near';
-      distHtml = `<span class="${distCls}">${dFt > 5280 ? (dFt/5280).toFixed(1)+'mi' : dFt+'ft'}</span>`;
-      bearHtml = `<span class="arrow-sm">${bearingToArrow(b)}</span> ${bearingToCardinal(b)}`;
+    const hud=document.getElementById('navHud');
+    const sheet=document.getElementById('bottomSheet');
+    const settings=document.getElementById('settingsPanel');
+    
+    settings.classList.remove('show');
+    
+    if(t==='map'){
+      hud.classList.add('hidden');
+      sheet.classList.remove('expanded');
+      sheet.classList.add('collapsed');
+    }else if(t==='list'){
+      hud.classList.add('hidden');
+      sheet.classList.remove('collapsed');
+      sheet.classList.add('expanded');
+    }else if(t==='navigate'){
+      hud.classList.remove('hidden');
+      sheet.classList.remove('expanded');
+      sheet.classList.add('collapsed');
+      // Request compass permission on iOS
+      startCompass();
+    }else if(t==='settings'){
+      settings.classList.add('show');
     }
     
-    return `
-      <div class="sample-card" onclick="selectTarget('${p.id}')">
-        <div class="point-icon ${cls}">${shortId}</div>
-        <div class="info">
-          <div class="name">${p.id}</div>
-          <div class="meta">${p.type.toUpperCase()} · ${p.depth} · ${p.lat.toFixed(6)}, ${p.lon.toFixed(6)}</div>
-        </div>
-        <div class="nav-info">
-          <div class="dist">${distHtml}</div>
-          <div class="bearing">${bearHtml}</div>
-        </div>
-      </div>`;
-  }).join('');
-}
+    setTimeout(function(){map.invalidateSize()},100);
+  });
+});
 
-function updateSampleDistances() {
-  // Re-render if samples panel is active
-  if (document.getElementById('samples-panel').classList.contains('active')) {
-    const filter = document.querySelector('.filter-btn.active')?.dataset.filter || 'all';
-    const search = document.getElementById('search-input')?.value || '';
-    renderSampleList(filter, search);
+// Sheet handle drag
+document.getElementById('sheetHandle').addEventListener('click',function(){
+  const sheet=document.getElementById('bottomSheet');
+  sheet.classList.toggle('collapsed');
+  sheet.classList.toggle('expanded');
+  setTimeout(function(){map.invalidateSize()},300);
+});
+
+// Map controls
+document.getElementById('btnLocate').addEventListener('click',function(){
+  if(state.userLat!=null){
+    state.autoCenter=true;
+    map.setView([state.userLat,state.userLon],18);
+    this.classList.add('active');
   }
-}
+});
 
-// Filter buttons
-document.querySelectorAll('.filter-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    renderSampleList(btn.dataset.filter, document.getElementById('search-input').value);
+map.on('drag',function(){
+  state.autoCenter=false;
+  document.getElementById('btnLocate').classList.remove('active');
+});
+
+document.getElementById('btnLayers').addEventListener('click',function(){
+  document.getElementById('layerPanel').classList.toggle('show');
+});
+
+document.getElementById('btnZoomIn').addEventListener('click',function(){map.zoomIn()});
+document.getElementById('btnZoomOut').addEventListener('click',function(){map.zoomOut()});
+
+// Close layer panel when clicking elsewhere
+map.on('click',function(){
+  document.getElementById('layerPanel').classList.remove('show');
+});
+
+// Layer toggles
+document.getElementById('lyrR2').addEventListener('change',function(){
+  this.checked?map.addLayer(layers.r2Proposed):map.removeLayer(layers.r2Proposed);
+});
+document.getElementById('lyrStepout').addEventListener('change',function(){
+  this.checked?map.addLayer(layers.r2Stepout):map.removeLayer(layers.r2Stepout);
+});
+document.getElementById('lyrVisited').addEventListener('change',function(){
+  this.checked?map.addLayer(layers.visited):map.removeLayer(layers.visited);
+});
+document.getElementById('lyrJacobs').addEventListener('change',function(){
+  this.checked?map.addLayer(layers.jacobs):map.removeLayer(layers.jacobs);
+});
+document.getElementById('lyrEA').addEventListener('change',function(){
+  this.checked?map.addLayer(layers.ea):map.removeLayer(layers.ea);
+});
+
+// Filters
+document.querySelectorAll('.filter-btn[data-filter]').forEach(function(btn){
+  btn.addEventListener('click',function(){
+    document.querySelectorAll('.filter-btn[data-filter]').forEach(function(b){b.classList.remove('active')});
+    this.classList.add('active');
+    state.filter=this.dataset.filter;
+    updatePointList();
   });
 });
 
 // Search
-document.getElementById('search-input')?.addEventListener('input', e => {
-  const filter = document.querySelector('.filter-btn.active')?.dataset.filter || 'all';
-  renderSampleList(filter, e.target.value);
+document.getElementById('searchInput').addEventListener('input',function(){
+  state.searchQuery=this.value;
+  updatePointList();
+});
+
+// Arrival dismiss
+document.getElementById('arrivalDismiss').addEventListener('click',function(){
+  const p=state.selectedPoint;
+  if(p){
+    markVisited(p.id);
+    state.arrivedDismissed[p.id]=true;
+  }
+  document.getElementById('arrivalOverlay').classList.remove('show');
+  
+  // Auto-select next nearest unvisited
+  const unvisited=r2Points.filter(pt=>!state.visited[pt.id]);
+  if(unvisited.length>0&&state.userLat!=null){
+    unvisited.forEach(pt=>{pt._dist=haversine(state.userLat,state.userLon,pt.lat,pt.lon)});
+    unvisited.sort((a,b)=>a._dist-b._dist);
+    selectPoint(unvisited[0]);
+  }else{
+    state.selectedPoint=null;
+    document.getElementById('navContent').style.display='none';
+    document.getElementById('navEmpty').style.display='';
+    document.getElementById('navEmpty').textContent='All points visited!';
+  }
+});
+
+// Settings toggles
+function setupToggle(id,key){
+  const el=document.getElementById(id);
+  if(state[key])el.classList.add('on');else el.classList.remove('on');
+  el.addEventListener('click',function(){
+    state[key]=!state[key];
+    this.classList.toggle('on');
+    if(key==='autoCenter'&&state.autoCenter&&state.userLat!=null){
+      map.setView([state.userLat,state.userLon],map.getZoom());
+    }
+    if(key==='highContrast'){
+      document.body.style.fontSize=state.highContrast?'18px':'';
+      document.querySelector('.nav-distance').style.fontSize=state.highContrast?'42px':'';
+    }
+  });
+}
+setupToggle('toggleAutoCenter','autoCenter');
+setupToggle('toggleVibrate','vibrateOnArrival');
+setupToggle('toggleAutoNearest','autoNearest');
+setupToggle('toggleHighContrast','highContrast');
+
+// Units
+document.getElementById('unitFeet').addEventListener('click',function(){
+  state.units='feet';this.classList.add('active');document.getElementById('unitMeters').classList.remove('active');
+  updatePointList();updateNavHUD();
+});
+document.getElementById('unitMeters').addEventListener('click',function(){
+  state.units='meters';this.classList.add('active');document.getElementById('unitFeet').classList.remove('active');
+  updatePointList();updateNavHUD();
+});
+
+// Settings back
+document.getElementById('settingsBack').addEventListener('click',function(){
+  document.getElementById('settingsPanel').classList.remove('show');
+  document.querySelectorAll('.tab').forEach(function(t){t.classList.remove('active')});
+  document.querySelector('.tab[data-tab="map"]').classList.add('active');
+});
+
+// Export CSV
+document.getElementById('exportBtn').addEventListener('click',function(){
+  let csv='Point_ID,Time_Visited,GPS_Lat,GPS_Lon\n';
+  state.visitLog.forEach(function(v){
+    csv+=v.id+','+v.time+','+(v.lat||'')+','+(v.lon||'')+'\n';
+  });
+  const blob=new Blob([csv],{type:'text/csv'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='sbmm_visit_log_'+new Date().toISOString().split('T')[0]+'.csv';
+  a.click();
+});
+
+// Reset
+document.getElementById('resetBtn').addEventListener('click',function(){
+  if(confirm('Reset all visited points? This cannot be undone.')){
+    state.visited={};
+    state.visitLog=[];
+    state.arrivedDismissed={};
+    saveVisited();
+    updateMarkers();
+    updatePointList();
+    updateProgress();
+  }
 });
 
 // ============================================================
-// TAB NAVIGATION
+// INIT
 // ============================================================
-function switchTab(tab) {
-  // Tabs
-  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
-  
-  // Panels
-  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
-  
-  if (tab === 'map') {
-    document.getElementById('map-container').style.display = 'block';
-    setTimeout(() => map.invalidateSize(), 100);
-  } else {
-    document.getElementById('map-container').style.display = 'block'; // keep map in bg
-    const panel = document.getElementById(tab + '-panel');
-    if (panel) panel.classList.add('active');
-  }
-  
-  if (tab === 'samples') {
-    const filter = document.querySelector('.filter-btn.active')?.dataset.filter || 'all';
-    renderSampleList(filter, document.getElementById('search-input')?.value || '');
-  }
-}
+addR2Markers();
+addHistoricalMarkers();
+updatePointList();
+updateProgress();
+startGPS();
 
-function locateMe() {
-  if (userLat !== null) {
-    map.setView([userLat, userLon], 18, { animate: true });
-    switchTab('map');
-  }
-}
+// Start in navigate tab view
+document.querySelector('.tab[data-tab="navigate"]').click();
 
-// ============================================================
-// SETTINGS
-// ============================================================
-function toggleSunlight() {
-  settings.sunlight = !settings.sunlight;
-  document.body.classList.toggle('sunlight', settings.sunlight);
-  document.getElementById('toggle-sunlight').classList.toggle('on', settings.sunlight);
-  saveSettings();
-}
-
-function toggleCompassHUD() {
-  settings.compassHUD = !settings.compassHUD;
-  document.getElementById('toggle-compass').classList.toggle('on', settings.compassHUD);
-  const hud = document.getElementById('compass-hud');
-  if (!settings.compassHUD) {
-    hud.classList.remove('active');
-    document.body.classList.remove('compass-active');
-  } else if (selectedTarget) {
-    hud.classList.add('active');
-    document.body.classList.add('compass-active');
-  }
-  saveSettings();
-}
-
-function toggleAutoCenter() {
-  settings.autoCenter = !settings.autoCenter;
-  document.getElementById('toggle-autocenter').classList.toggle('on', settings.autoCenter);
-  saveSettings();
-}
-
-function toggleHistorical() {
-  settings.showHistorical = !settings.showHistorical;
-  document.getElementById('toggle-hist').classList.toggle('on', settings.showHistorical);
-  if (settings.showHistorical) histLayer.addTo(map);
-  else map.removeLayer(histLayer);
-  saveSettings();
-}
-
-function toggleEA() {
-  settings.showEA = !settings.showEA;
-  document.getElementById('toggle-ea').classList.toggle('on', settings.showEA);
-  if (settings.showEA) eaLayer.addTo(map);
-  else map.removeLayer(eaLayer);
-  saveSettings();
-}
-
-function toggleSatellite() {
-  settings.satellite = !settings.satellite;
-  document.getElementById('toggle-satellite').classList.toggle('on', settings.satellite);
-  if (settings.satellite) {
-    map.removeLayer(window.streetLayer);
-    window.satelliteLayer.addTo(map);
-  } else {
-    map.removeLayer(window.satelliteLayer);
-    window.streetLayer.addTo(map);
-  }
-  saveSettings();
-}
-
-function applySettings() {
-  document.body.classList.toggle('sunlight', settings.sunlight);
-  document.getElementById('toggle-sunlight').classList.toggle('on', settings.sunlight);
-  document.getElementById('toggle-compass').classList.toggle('on', settings.compassHUD);
-  document.getElementById('toggle-autocenter').classList.toggle('on', settings.autoCenter);
-  document.getElementById('toggle-hist').classList.toggle('on', settings.showHistorical);
-  document.getElementById('toggle-ea').classList.toggle('on', settings.showEA);
-  document.getElementById('toggle-satellite').classList.toggle('on', settings.satellite);
-  document.getElementById('arrival-dist').value = settings.arrivalDist;
-}
-
-// ============================================================
-// DATA ACTIONS
-// ============================================================
-function resetVisited() {
-  if (confirm('Reset all visited markers? This cannot be undone.')) {
-    visited = {};
-    arrivalShown = {};
-    saveVisited();
-    // Rebuild markers
-    r2Layer.clearLayers();
-    R2_POINTS.forEach(p => {
-      const shortId = p.id.replace('ABP-R2-','');
-      const icon = L.divIcon({
-        className: '',
-        html: `<div class="marker-r2 ${p.type}" data-id="${p.id}">${shortId}</div>`,
-        iconSize: [24, 24], iconAnchor: [12, 12]
-      });
-      const marker = L.marker([p.lat, p.lon], { icon }).addTo(r2Layer);
-      marker.on('click', () => selectTarget(p.id));
-      r2Markers[p.id] = marker;
-    });
-    updateProgress();
-    renderSampleList();
-  }
-}
-
-function copyGPS() {
-  if (userLat !== null) {
-    const text = `${userLat.toFixed(6)}, ${userLon.toFixed(6)} (±${Math.round(userAcc)}m)`;
-    navigator.clipboard?.writeText(text).then(() => alert('Copied: ' + text));
-  } else {
-    alert('No GPS position available');
-  }
-}
-
-function exportLog() {
-  let csv = 'Point_ID,Time_Visited,Latitude,Longitude,GPS_Accuracy_m\n';
-  Object.entries(visited).forEach(([id, v]) => {
-    csv += `${id},${v.time},${v.lat},${v.lon},${v.acc}\n`;
-  });
-  const blob = new Blob([csv], { type: 'text/csv' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = `sbmm-visit-log-${new Date().toISOString().slice(0,10)}.csv`;
-  a.click(); URL.revokeObjectURL(url);
-}
-
-function updateProgress() {
-  const count = Object.keys(visited).length;
-  document.getElementById('progress-badge').textContent = `${count}/50`;
-}
-
-// ============================================================
-// PERSISTENCE
-// ============================================================
-function saveVisited() { try { localStorage.setItem('sbmm-nav-visited', JSON.stringify(visited)); } catch(e){} }
-function loadVisited() { try { visited = JSON.parse(localStorage.getItem('sbmm-nav-visited') || '{}'); } catch(e){ visited = {}; } }
-function saveSettings() { try { localStorage.setItem('sbmm-nav-settings', JSON.stringify(settings)); } catch(e){} }
-function loadSettings() {
-  try {
-    const s = JSON.parse(localStorage.getItem('sbmm-nav-settings'));
-    if (s) Object.assign(settings, s);
-  } catch(e){}
-}
-
-// ============================================================
-// GEO MATH
-// ============================================================
-function haversine(lat1, lon1, lat2, lon2) {
-  const R = 6371000; // meters
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) * Math.sin(dLon/2)**2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
-
-function getBearing(lat1, lon1, lat2, lon2) {
-  const dLon = (lon2 - lon1) * Math.PI / 180;
-  const y = Math.sin(dLon) * Math.cos(lat2 * Math.PI / 180);
-  const x = Math.cos(lat1*Math.PI/180) * Math.sin(lat2*Math.PI/180) - 
-            Math.sin(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) * Math.cos(dLon);
-  return ((Math.atan2(y, x) * 180 / Math.PI) + 360) % 360;
-}
-
-function bearingToCardinal(b) {
-  const dirs = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
-  return dirs[Math.round(b / 22.5) % 16] + ' ' + Math.round(b) + '°';
-}
-
-function bearingToArrow(b) {
-  const arrows = ['↑','↗','→','↘','↓','↙','←','↖'];
-  return arrows[Math.round(b / 45) % 8];
-}
-
-// ============================================================
-// LAUNCH
-// ============================================================
-document.addEventListener('DOMContentLoaded', init);
+// Fit map to R2 points
+const bounds=L.latLngBounds(r2Points.map(function(p){return[p.lat,p.lon]}));
+map.fitBounds(bounds.pad(0.1));
 </script>
 </body>
 </html>
