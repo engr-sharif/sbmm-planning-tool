@@ -977,18 +977,43 @@ const MARKERS={};
 
 function mkMarkerIcon(pt){
   const vis=!!VISITED[pt.id], sel=S.sel&&S.sel.id===pt.id;
-  let c=pt.t==='proposed'?'#818cf8':'#fbbf24';
-  if(vis)c='#10b981';
-  const sz=sel?22:13;
-  const border=sel?'3px solid #fff':'2px solid rgba(255,255,255,0.9)';
-  const glow=sel?`drop-shadow(0 0 8px ${c})`:null;
+  let dotColor=pt.t==='proposed'?'#818cf8':'#fbbf24';
+  if(vis)dotColor='#10b981';
   const photoCnt=PHOTOS[pt.id]?PHOTOS[pt.id].length:0;
-  const badge=photoCnt>0?`<div style="position:absolute;top:-5px;right:-5px;width:14px;height:14px;border-radius:50%;background:#3b82f6;color:#fff;font-size:8px;font-weight:700;display:flex;align-items:center;justify-content:center;line-height:1">${photoCnt}</div>`:'';
-  return L.divIcon({
-    className:'',
-    html:`<div style="position:relative;width:${sz}px;height:${sz}px"><div style="width:${sz}px;height:${sz}px;border-radius:50%;background:${c};border:${border};box-shadow:0 2px 6px rgba(0,0,0,0.4);${glow?'filter:'+glow:''}"></div>${badge}</div>`,
-    iconSize:[sz,sz],iconAnchor:[sz/2,sz/2]
-  });
+
+  if(sel){
+    // Full callout for selected point
+    const html=`
+      <div style="position:relative;display:flex;flex-direction:column;align-items:center;pointer-events:none">
+        <div style="
+          background:rgba(15,23,42,0.95);border:2px solid ${dotColor};
+          border-radius:10px;padding:5px 10px;
+          font-family:-apple-system,sans-serif;font-size:12px;font-weight:700;
+          color:#fff;white-space:nowrap;
+          box-shadow:0 4px 16px rgba(0,0,0,0.5),0 0 0 3px rgba(59,130,246,0.3);
+          margin-bottom:5px;
+        ">${pt.id}${photoCnt>0?` 📷${photoCnt}`:''}</div>
+        <div style="width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-top:8px solid ${dotColor}"></div>
+        <div style="width:16px;height:16px;border-radius:50%;background:${dotColor};border:2.5px solid #fff;box-shadow:0 0 12px ${dotColor};margin-top:2px"></div>
+      </div>`;
+    return L.divIcon({className:'',html,iconSize:[100,60],iconAnchor:[50,60]});
+  }
+
+  // Non-selected: compact label + dot
+  const shortId=pt.id.replace('ABP-R2-','');
+  const html=`
+    <div style="position:relative;display:flex;flex-direction:column;align-items:center;pointer-events:none">
+      <div style="
+        background:rgba(15,23,42,0.82);border:1.5px solid ${dotColor};
+        border-radius:6px;padding:2px 7px;
+        font-family:-apple-system,sans-serif;font-size:10px;font-weight:700;
+        color:rgba(255,255,255,0.9);white-space:nowrap;margin-bottom:3px;
+        box-shadow:0 2px 6px rgba(0,0,0,0.4);
+      ">${shortId}${photoCnt>0?'📷':''}</div>
+      <div style="width:0;height:0;border-left:4px solid transparent;border-right:4px solid transparent;border-top:5px solid ${dotColor}"></div>
+      <div style="width:${vis?10:8}px;height:${vis?10:8}px;border-radius:50%;background:${dotColor};border:2px solid rgba(255,255,255,0.9);box-shadow:0 1px 4px rgba(0,0,0,0.3)"></div>
+    </div>`;
+  return L.divIcon({className:'',html,iconSize:[60,38],iconAnchor:[30,38]});
 }
 
 function drawMapMarkers(){
@@ -1120,7 +1145,10 @@ function onOrientation(e){
 
   S.hdgRaw=raw;
   S.hdg=smoothHeading(raw);
-  if(e.beta!=null)S.beta=e.beta;
+  if(e.beta!=null){
+    // Smooth beta too — prevent jittery vertical projection
+    S.beta=S.beta==null?e.beta:S.beta*0.85+e.beta*0.15;
+  }
 
   // Reset calibration warning timer
   clearTimeout(compassStaleTimer);
@@ -1307,7 +1335,65 @@ function arLoop(){
   renderAR();
 }
 
-const FOV_H=65; // iPhone approximate horizontal FOV in degrees
+// iPhone camera approximate FOV
+const FOV_H=65;  // horizontal degrees visible
+const FOV_V=48;  // vertical degrees visible
+const EYE_H=1.6; // assumed eye height in meters
+
+// Convert device beta to pitch angle:
+// beta=90 → looking at horizon (pitch=0)
+// beta>90 → tilted down, seeing ground (pitch positive = below horizon)
+// beta<90 → tilted up (pitch negative = above horizon)
+function devicePitch(){
+  // S.beta is 0=flat, 90=upright, 180=flat face-down
+  // We want: 0=horizon, positive=looking down
+  return S.beta - 90; // positive = below horizon
+}
+
+// Project a ground-level point to screen coordinates (Sky Map style)
+// Returns {x, y, inView, alpha} or null if too far off screen
+function projectPoint(ptLat,ptLon){
+  if(S.lat==null||S.hdg==null)return null;
+  const dist=hav(S.lat,S.lon,ptLat,ptLon);
+  const b=brg(S.lat,S.lon,ptLat,ptLon);
+
+  // Horizontal: bearing difference from device heading
+  const hRel=relBrg(b,S.hdg); // -180..180, positive=right
+
+  // Vertical: the point is on the ground below the horizon
+  // Vertical angle down to point = atan(EYE_H / dist) in degrees
+  const vAngle=Math.atan(EYE_H/Math.max(dist,1))*180/Math.PI; // degrees below horizon
+
+  // Device pitch: how many degrees below horizon the camera is pointing
+  const pitch=devicePitch(); // positive = camera pointing down
+
+  // Vertical: point is vAngle degrees below horizon.
+  // Camera is pitch degrees below horizon.
+  // If pitch < vAngle: camera above point → point appears LOW on screen (+Y)
+  // If pitch > vAngle: camera below point → point appears HIGH on screen (-Y)
+  const vRel=vAngle-pitch; // positive = point below camera center = lower on screen
+
+  const halfH=FOV_H/2;
+  const halfV=FOV_V/2;
+
+  // Check if in FOV (with margins for smooth fade)
+  const hMargin=halfH+25;
+  const vMargin=halfV+20;
+  if(Math.abs(hRel)>hMargin||Math.abs(vRel)>vMargin)return null;
+
+  const canvas=document.getElementById('ar-canvas');
+  const W=canvas.width,H=canvas.height;
+
+  const x=W/2+(hRel/halfH)*(W/2);
+  const y=H/2+(vRel/halfV)*(H/2);
+
+  // Fade at edges
+  const hAlpha=Math.max(0,1-Math.abs(hRel)/hMargin);
+  const vAlpha=Math.max(0,1-Math.abs(vRel)/vMargin);
+  const alpha=hAlpha*vAlpha;
+
+  return {x,y,dist,bearing:b,hRel,vRel,alpha,inView:alpha>0.05};
+}
 
 function renderAR(){
   const canvas=document.getElementById('ar-canvas');
@@ -1315,39 +1401,52 @@ function renderAR(){
   const W=canvas.width,H=canvas.height;
   ctx.clearRect(0,0,W,H);
 
-  const safeTop=parseInt(getComputedStyle(document.documentElement).getPropertyValue('--it'))||0;
-  const safeBot=parseInt(getComputedStyle(document.documentElement).getPropertyValue('--ib'))||0;
-  const tabH=56;
-  const compass_y=safeTop+60;
-
-  // Tilt hint
-  const tiltOk=S.beta>30;
-  document.getElementById('tilt-hint').classList.toggle('show',!tiltOk&&S.beta<30);
+  // Horizon line hint (subtle)
+  if(S.hdg!=null){
+    const pitch=devicePitch();
+    // Draw a faint horizon line at the right height
+    const horizY=H/2+(pitch/( FOV_V/2))*(H/2);
+    ctx.save();
+    ctx.strokeStyle='rgba(255,255,255,0.12)';
+    ctx.lineWidth=1;
+    ctx.setLineDash([8,12]);
+    ctx.beginPath();ctx.moveTo(0,horizY);ctx.lineTo(W,horizY);ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+  }
 
   // === COMPASS TAPE ===
-  drawCompassTape(ctx,W,compass_y);
+  drawCompassTape(ctx,W);
 
-  // === AR POINT LABELS (if GPS + compass) ===
-  if(S.lat!=null&&S.hdg!=null&&tiltOk){
-    R2.forEach(pt=>{
-      const d=hav(S.lat,S.lon,pt.lat,pt.lon);
-      if(d>300)return;
-      const b=brg(S.lat,S.lon,pt.lat,pt.lon);
-      const rel=relBrg(b,S.hdg);
-      const halfFov=FOV_H/2;
-      if(Math.abs(rel)>halfFov+20)return;
-      const x=W/2+(rel/halfFov)*(W/2);
-      const alpha=Math.max(0,1-Math.abs(rel)/(halfFov+10));
+  // === AR POINT LABELS — Sky Map projection ===
+  if(S.lat!=null&&S.hdg!=null){
+    // Sort by distance descending so closer points render on top
+    const pts=[...R2].map(pt=>{
+      const proj=projectPoint(pt.lat,pt.lon);
+      return{pt,proj};
+    }).filter(x=>x.proj&&x.proj.inView);
+    pts.sort((a,b)=>b.proj.dist-a.proj.dist);
+
+    pts.forEach(({pt,proj})=>{
       const isSel=S.sel&&S.sel.id===pt.id;
       const isVis=!!VISITED[pt.id];
-      drawARLabel(ctx,x,H*0.38,d,pt,alpha,isSel,isVis);
+      drawARLabel(ctx,proj.x,proj.y,proj.dist,pt,proj.alpha,isSel,isVis);
     });
   }
 
-  // === NAVIGATION ARROW + HUD ===
-  if(S.sel&&S.lat!=null){
+  // === TARGET INDICATOR when selected point is off-screen ===
+  if(S.sel&&S.lat!=null&&S.hdg!=null){
+    const proj=projectPoint(S.sel.lat,S.sel.lon);
     const d=hav(S.lat,S.lon,S.sel.lat,S.sel.lon);
     const b=brg(S.lat,S.lon,S.sel.lat,S.sel.lon);
+
+    // Off-screen indicator arrow pointing toward target
+    if(!proj||!proj.inView){
+      const rel=relBrg(b,S.hdg);
+      const edgeX=Math.max(60,Math.min(W-60,W/2+(rel/(FOV_H/2))*(W/2)));
+      const clampedX=rel<0?50:W-50;
+      drawOffscreenArrow(ctx,clampedX,H*0.45,rel<0?'left':'right',d);
+    }
 
     // Update DOM HUD
     document.getElementById('ar-target-id').textContent=S.sel.id+' · '+S.sel.d;
@@ -1358,29 +1457,54 @@ function renderAR(){
     const eta=Math.round(d/67);
     document.getElementById('ar-eta').textContent=eta>0?`~${eta} min walk`:'Almost there!';
 
-    // Rotate arrow SVG
-    let arrowRot=0;
-    if(S.hdg!=null)arrowRot=b-S.hdg;
+    // Rotate nav arrow
+    let arrowRot=relBrg(b,S.hdg);
     document.getElementById('ar-arrow').style.transform=`rotate(${arrowRot}deg)`;
 
-    // Arrival ring (when close)
+    // Arrival pulse
     if(d<5){
-      ctx.save();
-      const cx=W/2,cy=H/2;
       const t=Date.now()/1000;
+      ctx.save();
       for(let i=0;i<3;i++){
         const prog=(t*0.5+i/3)%1;
-        const r=40+prog*80;
-        const a=(1-prog)*0.6;
-        ctx.beginPath();ctx.arc(cx,cy,r,0,Math.PI*2);
-        ctx.strokeStyle=`rgba(16,185,129,${a})`;ctx.lineWidth=2;ctx.stroke();
+        const r=50+prog*100;
+        const a=(1-prog)*0.5;
+        ctx.beginPath();ctx.arc(W/2,H/2,r,0,Math.PI*2);
+        ctx.strokeStyle=`rgba(16,185,129,${a})`;ctx.lineWidth=3;ctx.stroke();
       }
       ctx.restore();
     }
   }
+
+  // === TILT GUIDE — only show when phone is nearly flat ===
+  if(S.beta!==null&&S.beta<25){
+    ctx.save();
+    ctx.fillStyle='rgba(15,23,42,0.75)';
+    roundRect(ctx,W/2-120,H/2-22,240,44,12);ctx.fill();
+    ctx.fillStyle='rgba(255,255,255,0.8)';ctx.font='14px -apple-system';
+    ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText('📱 Raise phone to see AR overlay',W/2,H/2);
+    ctx.restore();
+  }
 }
 
-function drawCompassTape(ctx,W,y){
+function drawOffscreenArrow(ctx,x,y,dir,dist){
+  ctx.save();
+  ctx.fillStyle='rgba(129,140,248,0.9)';
+  ctx.strokeStyle='rgba(255,255,255,0.8)';ctx.lineWidth=2;
+  ctx.translate(x,y);
+  ctx.rotate(dir==='left'?-Math.PI/2:Math.PI/2);
+  ctx.beginPath();
+  ctx.moveTo(0,-18);ctx.lineTo(14,10);ctx.lineTo(0,2);ctx.lineTo(-14,10);ctx.closePath();
+  ctx.fill();ctx.stroke();
+  ctx.restore();
+  ctx.fillStyle='rgba(255,255,255,0.8)';ctx.font='bold 12px -apple-system';
+  ctx.textAlign='center';ctx.textBaseline='top';
+  ctx.fillText(fmtD(dist),x,y+24);
+}
+
+function drawCompassTape(ctx,W){
+  const y=0;
   const H_tape=54,deg_px=W/90; // 90 degrees visible
   const hdg=S.hdg!=null?S.hdg:0;
 
