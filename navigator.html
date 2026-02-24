@@ -1556,9 +1556,11 @@ function setView(name){
     stopAR();
   }
 
-  // Map resize
+  // Map resize — call twice: immediately + after transition
   if(name==='map'){
-    setTimeout(()=>map.invalidateSize(),350);
+    map.invalidateSize();
+    setTimeout(()=>map.invalidateSize(),100);
+    setTimeout(()=>map.invalidateSize(),400);
   }
 }
 
@@ -1822,12 +1824,18 @@ function init(){
   renderList();
   updateProgress();
 
-  // Fit map to R2 bounds
-  const bounds=L.latLngBounds(R2.map(p=>[p.lat,p.lon]));
-  map.fitBounds(bounds.pad(0.12));
+  // Show map view FIRST before anything Leaflet does
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.getElementById('map-view').classList.add('active');
+  document.querySelectorAll('.tab-btn').forEach((b,i)=>b.classList.toggle('active',i===0));
 
-  // Default view
-  setView('map');
+  // Now that map container is visible, force Leaflet to recalculate size
+  map.invalidateSize();
+  setTimeout(()=>{
+    map.invalidateSize();
+    const bounds=L.latLngBounds(R2.map(p=>[p.lat,p.lon]));
+    map.fitBounds(bounds.pad(0.12));
+  },100);
 
   // Keep AR canvas sized
   const canvas=document.getElementById('ar-canvas');
