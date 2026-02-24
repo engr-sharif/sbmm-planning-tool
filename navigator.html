@@ -517,6 +517,127 @@ body{
 /* Hidden file input */
 #photo-capture{display:none}
 
+/* ================================================================
+   GPS ACCURACY MODAL
+================================================================ */
+.gps-modal-overlay{
+  position:fixed;inset:0;z-index:960;background:rgba(0,0,0,0.75);
+  display:none;align-items:center;justify-content:center;padding:24px;
+}
+.gps-modal-overlay.show{display:flex}
+.gps-modal-card{
+  background:var(--surface);border-radius:20px;padding:28px 24px;
+  width:100%;max-width:340px;text-align:center;border:1px solid var(--border);
+}
+.gps-modal-icon{font-size:44px;margin-bottom:12px}
+.gps-modal-title{font-size:19px;font-weight:800;margin-bottom:8px}
+.gps-modal-msg{font-size:14px;color:var(--text2);line-height:1.6;margin-bottom:24px}
+.gps-modal-btns{display:flex;gap:12px}
+.gps-btn-wait{flex:1;padding:14px;border-radius:12px;border:1.5px solid var(--border);background:var(--surface2);color:var(--text);font-size:16px;font-weight:700;cursor:pointer}
+.gps-btn-ok{flex:1;padding:14px;border-radius:12px;border:none;background:var(--primary);color:#fff;font-size:16px;font-weight:700;cursor:pointer}
+
+/* ================================================================
+   BORING LOG SHEET
+================================================================ */
+.boring-sheet{
+  position:fixed;inset:0;z-index:920;background:var(--bg);
+  transform:translateY(100%);transition:transform .35s cubic-bezier(0.4,0,0.2,1);
+  display:flex;flex-direction:column;overflow:hidden;
+}
+.boring-sheet.open{transform:translateY(0)}
+.boring-header{
+  position:relative;background:rgba(15,23,42,0.97);backdrop-filter:blur(14px);
+  padding:calc(var(--it) + 12px) 16px 12px;
+  display:flex;align-items:flex-start;justify-content:space-between;
+  border-bottom:1px solid var(--border);flex-shrink:0;
+}
+.boring-pt-id{font-size:22px;font-weight:900;letter-spacing:-0.5px}
+.boring-ts{font-size:12px;color:var(--text3);margin-top:2px}
+.boring-gps-badge{
+  font-size:12px;font-weight:700;padding:4px 10px;border-radius:20px;
+  background:rgba(34,197,94,0.15);color:#22c55e;margin-top:6px;display:inline-block;
+}
+.boring-close{
+  width:38px;height:38px;border-radius:50%;background:var(--surface2);
+  display:flex;align-items:center;justify-content:center;color:var(--text2);
+  font-size:20px;cursor:pointer;flex-shrink:0;margin-left:12px;
+}
+.boring-body{
+  flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:16px;
+}
+.bl-section{margin-bottom:26px}
+.bl-label{
+  font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;
+  color:var(--text3);margin-bottom:10px;
+}
+.bl-sub-label{font-size:12px;color:var(--text3);font-weight:600;letter-spacing:0.3px;margin-bottom:8px}
+.bl-chips{display:flex;flex-wrap:wrap;gap:8px}
+.bl-chip{
+  padding:9px 16px;border-radius:20px;border:1.5px solid var(--border);
+  background:var(--surface2);color:var(--text2);font-size:14px;font-weight:600;
+  cursor:pointer;transition:all .15s;white-space:nowrap;
+}
+.bl-chip.active{border-color:var(--primary);background:rgba(59,130,246,0.18);color:var(--primary)}
+.bl-input{
+  width:100%;padding:11px 14px;border-radius:10px;border:1.5px solid var(--border);
+  background:var(--surface2);color:var(--text);font-size:15px;
+  -webkit-appearance:none;box-sizing:border-box;
+}
+.bl-input:focus{outline:none;border-color:var(--primary)}
+.bl-input-sm{
+  width:100px;padding:9px 12px;border-radius:10px;border:1.5px solid var(--border);
+  background:var(--surface2);color:var(--text);font-size:15px;-webkit-appearance:none;
+}
+.bl-input-sm:focus{outline:none;border-color:var(--primary)}
+/* Color chips: use box-shadow outline for selection so inline bg isn't overridden */
+.color-chip{border-radius:10px;padding:8px 14px;font-size:13px;font-weight:700;border:2px solid transparent}
+.color-chip.sel{box-shadow:0 0 0 3px var(--primary)}
+/* USCS wizard */
+.uscs-wizard-wrap{background:var(--surface);border-radius:14px;padding:14px;border:1px solid var(--border)}
+.uscs-q{font-size:15px;font-weight:700;color:var(--text);margin-bottom:12px;line-height:1.4}
+.uscs-opts{display:flex;flex-direction:column;gap:8px}
+.uscs-opt{
+  display:flex;flex-direction:column;align-items:flex-start;
+  padding:12px 14px;border-radius:12px;border:1.5px solid var(--border);
+  background:var(--surface2);color:var(--text);font-size:15px;font-weight:700;
+  cursor:pointer;text-align:left;transition:border-color .12s;
+}
+.uscs-opt span{font-size:12px;color:var(--text3);font-weight:400;margin-top:2px}
+.uscs-opt:active{border-color:var(--primary)}
+.uscs-result-row{
+  display:flex;align-items:center;gap:14px;
+  background:var(--surface);border-radius:14px;padding:14px;border:1px solid var(--border);
+}
+.uscs-symbol-big{
+  font-size:30px;font-weight:900;letter-spacing:-1px;
+  background:rgba(59,130,246,0.15);color:var(--primary);
+  border-radius:10px;padding:8px 14px;flex-shrink:0;
+}
+.uscs-desc-text{font-size:15px;font-weight:600;color:var(--text);line-height:1.3}
+.uscs-redo-btn{font-size:12px;color:var(--text3);text-decoration:underline;cursor:pointer;margin-top:5px;display:inline-block;background:none;border:none;padding:0}
+/* PID row */
+.pid-row{display:flex;align-items:center;gap:10px;margin-bottom:4px}
+/* Textarea + mic */
+.notes-row{display:flex;gap:8px;align-items:flex-start}
+.bl-textarea{
+  flex:1;min-height:80px;padding:12px;border-radius:10px;border:1.5px solid var(--border);
+  background:var(--surface2);color:var(--text);font-size:15px;resize:none;
+  -webkit-appearance:none;line-height:1.5;
+}
+.bl-textarea:focus{outline:none;border-color:var(--primary)}
+.bl-mic-btn{
+  width:44px;height:44px;border-radius:22px;flex-shrink:0;
+  background:var(--surface2);border:1.5px solid var(--border);
+  font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;
+}
+.bl-mic-btn.recording{background:rgba(239,68,68,0.2);border-color:#ef4444;animation:pulse-rec 1s infinite}
+@keyframes pulse-rec{0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,0.4)}50%{box-shadow:0 0 0 8px rgba(239,68,68,0)}}
+.bl-save-btn{
+  width:100%;padding:17px;border-radius:14px;border:none;
+  background:var(--primary);color:#fff;font-size:17px;font-weight:700;cursor:pointer;
+  box-shadow:0 4px 20px rgba(59,130,246,0.35);letter-spacing:0.2px;
+}
+
 /* Compass indicator in list/map for selected target */
 .mini-compass{
   position:absolute;bottom:calc(var(--tab-h) + var(--ib) + 14px);left:14px;
@@ -610,7 +731,7 @@ body{
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
         AR Navigate
       </button>
-      <button class="pt-act-btn success" id="card-visit">✓ Mark Done</button>
+      <button class="pt-act-btn success" id="card-visit">📋 Log Sample</button>
       <div style="position:relative">
         <button class="pt-act-btn cam" id="card-photo">📷</button>
         <div class="photo-badge" id="card-photo-badge" style="display:none">0</div>
@@ -778,7 +899,7 @@ body{
   <div class="arrival-sub" id="arr-sub">You've reached the sampling point</div>
   <div class="arrival-btns">
     <button class="arr-btn" id="arr-dismiss">Dismiss</button>
-    <button class="arr-btn primary" id="arr-visit">Mark Visited &amp; Next</button>
+    <button class="arr-btn primary" id="arr-visit">📋 Log &amp; Next</button>
   </div>
 </div>
 
@@ -796,6 +917,198 @@ body{
 
 <!-- Hidden file input for photo capture -->
 <input type="file" id="photo-capture" accept="image/*" capture="environment">
+
+<!-- GPS Accuracy Warning Modal -->
+<div class="gps-modal-overlay" id="gps-modal-overlay">
+  <div class="gps-modal-card">
+    <div class="gps-modal-icon">📡</div>
+    <div class="gps-modal-title">GPS Accuracy Low</div>
+    <div class="gps-modal-msg">
+      Current accuracy is <strong id="gps-modal-acc">--</strong>.<br>
+      Target is &lt;3 ft for precise sample locations.<br>
+      Wait for a better fix or continue anyway.
+    </div>
+    <div class="gps-modal-btns">
+      <button class="gps-btn-wait" id="gps-btn-wait">⏳ Wait</button>
+      <button class="gps-btn-ok" id="gps-btn-ok">→ Continue</button>
+    </div>
+  </div>
+</div>
+
+<!-- Boring Log Sheet -->
+<div class="boring-sheet" id="boring-sheet">
+  <div class="boring-header">
+    <div>
+      <div class="boring-pt-id" id="boring-pt-id">--</div>
+      <div class="boring-ts" id="boring-ts">--</div>
+      <div class="boring-gps-badge" id="boring-gps-badge">GPS: --</div>
+    </div>
+    <div class="boring-close" id="boring-close">&times;</div>
+  </div>
+
+  <div class="boring-body">
+
+    <!-- 1. Sample Depth -->
+    <div class="bl-section">
+      <div class="bl-label">Sample Depth</div>
+      <div class="bl-chips" id="depth-chips">
+        <button class="bl-chip" data-val="0–6 in">0–6"</button>
+        <button class="bl-chip" data-val="6–12 in">6–12"</button>
+        <button class="bl-chip" data-val="0–1 ft">0–1 ft</button>
+        <button class="bl-chip" data-val="1–2 ft">1–2 ft</button>
+        <button class="bl-chip" data-val="2–3 ft">2–3 ft</button>
+        <button class="bl-chip" data-val="3–4 ft">3–4 ft</button>
+        <button class="bl-chip" data-val="4–5 ft">4–5 ft</button>
+        <button class="bl-chip" data-val="custom" id="depth-custom-toggle">Custom…</button>
+      </div>
+      <input class="bl-input" id="depth-custom-input" placeholder="e.g. 0–2.5 ft" style="display:none;margin-top:8px">
+    </div>
+
+    <!-- 2. USCS Classification Wizard -->
+    <div class="bl-section">
+      <div class="bl-label">USCS Soil Classification</div>
+      <!-- Result (shown after wizard complete) -->
+      <div id="uscs-result-area" style="display:none">
+        <div class="uscs-result-row">
+          <div class="uscs-symbol-big" id="uscs-symbol-big">--</div>
+          <div>
+            <div class="uscs-desc-text" id="uscs-desc-text">--</div>
+            <button class="uscs-redo-btn" id="uscs-redo">↺ Redo classification</button>
+          </div>
+        </div>
+      </div>
+      <!-- Wizard steps -->
+      <div id="uscs-wizard-wrap" class="uscs-wizard-wrap">
+        <div id="uscs-step-1">
+          <div class="uscs-q">What best describes this soil?</div>
+          <div class="uscs-opts">
+            <button class="uscs-opt" data-step1="gravel">🪨 Gravel <span>Particles &gt;5 mm dominant, coarse feel</span></button>
+            <button class="uscs-opt" data-step1="sand">🏖️ Sand <span>Gritty feel, individual grains clearly visible</span></button>
+            <button class="uscs-opt" data-step1="silt">💨 Silt <span>Smooth, silky — quick dilatancy reaction</span></button>
+            <button class="uscs-opt" data-step1="clay">🧱 Clay <span>Sticky when wet, ribbons &gt;1 inch</span></button>
+            <button class="uscs-opt" data-step1="organic">🌿 Organic / Peat <span>Dark, fibrous, organic odor</span></button>
+          </div>
+        </div>
+        <div id="uscs-step-2a" style="display:none">
+          <div class="uscs-q">Fines content?</div>
+          <div class="uscs-opts">
+            <button class="uscs-opt" data-step2a="clean">✨ Clean <span>Little to no fines, free-draining</span></button>
+            <button class="uscs-opt" data-step2a="silty">💨 Silty fines <span>Non-plastic fines, gritty when dried</span></button>
+            <button class="uscs-opt" data-step2a="clayey">🧱 Clayey fines <span>Plastic fines, sticky when wet</span></button>
+          </div>
+        </div>
+        <div id="uscs-step-2b" style="display:none">
+          <div class="uscs-q">Grain size distribution?</div>
+          <div class="uscs-opts">
+            <button class="uscs-opt" data-step2b="well">📊 Well-graded <span>Wide range of particle sizes (GW / SW)</span></button>
+            <button class="uscs-opt" data-step2b="poor">📉 Poorly-graded <span>Uniform size or gap-graded (GP / SP)</span></button>
+          </div>
+        </div>
+        <div id="uscs-step-3" style="display:none">
+          <div class="uscs-q">Plasticity level?</div>
+          <div class="uscs-opts">
+            <button class="uscs-opt" data-step3="low">↓ Low plasticity <span>Short ribbon &lt;1", low dry strength (ML / CL)</span></button>
+            <button class="uscs-opt" data-step3="high">↑ High plasticity <span>Long ribbon &gt;2", high dry strength (MH / CH)</span></button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3. Soil Color -->
+    <div class="bl-section">
+      <div class="bl-label">Soil Color</div>
+      <div class="bl-chips" id="color-chips">
+        <button class="bl-chip color-chip" data-val="Brown" style="background:#7B5E3D;color:#fff;border-color:#7B5E3D">Brown</button>
+        <button class="bl-chip color-chip" data-val="Dark Brown" style="background:#4A3728;color:#fff;border-color:#4A3728">Dk Brown</button>
+        <button class="bl-chip color-chip" data-val="Gray" style="background:#888;color:#fff;border-color:#888">Gray</button>
+        <button class="bl-chip color-chip" data-val="Dark Gray" style="background:#444;color:#fff;border-color:#444">Dk Gray</button>
+        <button class="bl-chip color-chip" data-val="Black" style="background:#222;color:#fff;border-color:#222">Black</button>
+        <button class="bl-chip color-chip" data-val="Tan" style="background:#C9A96E;color:#333;border-color:#C9A96E">Tan</button>
+        <button class="bl-chip color-chip" data-val="Olive" style="background:#6B7A3A;color:#fff;border-color:#6B7A3A">Olive</button>
+        <button class="bl-chip color-chip" data-val="Red-Brown" style="background:#8B3A2F;color:#fff;border-color:#8B3A2F">Red-Brn</button>
+        <button class="bl-chip color-chip" data-val="Yellow-Brown" style="background:#A88B3D;color:#333;border-color:#A88B3D">Yel-Brn</button>
+      </div>
+    </div>
+
+    <!-- 4. Moisture -->
+    <div class="bl-section">
+      <div class="bl-label">Moisture</div>
+      <div class="bl-chips" id="moisture-chips">
+        <button class="bl-chip" data-val="Dry">Dry</button>
+        <button class="bl-chip" data-val="Moist">Moist</button>
+        <button class="bl-chip" data-val="Wet">Wet</button>
+        <button class="bl-chip" data-val="Saturated">Saturated</button>
+      </div>
+    </div>
+
+    <!-- 5. Density / Consistency (populated by JS based on USCS) -->
+    <div class="bl-section">
+      <div class="bl-label" id="density-label">Density / Consistency</div>
+      <div class="bl-chips" id="density-chips">
+        <span style="font-size:13px;color:var(--text3)">Complete USCS classification first</span>
+      </div>
+    </div>
+
+    <!-- 6. Field Screening -->
+    <div class="bl-section">
+      <div class="bl-label">Field Screening</div>
+      <div class="bl-sub-label">PID Reading (ppm)</div>
+      <div class="pid-row">
+        <input class="bl-input-sm" id="pid-input" type="number" inputmode="decimal" placeholder="ppm" min="0" max="9999">
+        <button class="bl-chip" id="pid-na-btn">N/A</button>
+        <span id="pid-na-label" style="display:none;font-size:13px;color:var(--text3)">Not taken</span>
+      </div>
+      <div class="bl-sub-label" style="margin-top:14px">Odor</div>
+      <div class="bl-chips" id="odor-level-chips" style="margin-bottom:8px">
+        <button class="bl-chip" data-val="None">None</button>
+        <button class="bl-chip" data-val="Slight">Slight</button>
+        <button class="bl-chip" data-val="Moderate">Moderate</button>
+        <button class="bl-chip" data-val="Strong">Strong</button>
+      </div>
+      <div class="bl-chips" id="odor-type-chips" style="display:none;margin-bottom:16px">
+        <button class="bl-chip" data-val="Petroleum">Petroleum</button>
+        <button class="bl-chip" data-val="Solvent">Solvent</button>
+        <button class="bl-chip" data-val="H₂S">H₂S</button>
+        <button class="bl-chip" data-val="Sewage">Sewage</button>
+        <button class="bl-chip" data-val="Other">Other</button>
+      </div>
+      <div class="bl-sub-label">Visible Staining</div>
+      <div class="bl-chips" id="stain-chips">
+        <button class="bl-chip" data-val="None">None</button>
+        <button class="bl-chip" data-val="Slight">Slight</button>
+        <button class="bl-chip" data-val="Moderate">Moderate</button>
+        <button class="bl-chip" data-val="Heavy">Heavy</button>
+      </div>
+    </div>
+
+    <!-- 7. Collection Status -->
+    <div class="bl-section">
+      <div class="bl-label">Collection Status</div>
+      <div class="bl-chips" id="status-chips">
+        <button class="bl-chip" data-val="Collected">✓ Collected</button>
+        <button class="bl-chip" data-val="Refusal – Bedrock">⛔ Bedrock</button>
+        <button class="bl-chip" data-val="Refusal – Cobble">⛔ Cobble</button>
+        <button class="bl-chip" data-val="Refusal – Utility">⚠️ Utility</button>
+        <button class="bl-chip" data-val="Deferred">⏸ Deferred</button>
+      </div>
+    </div>
+
+    <!-- 8. Field Notes + Voice -->
+    <div class="bl-section">
+      <div class="bl-label">Field Notes</div>
+      <div class="notes-row">
+        <textarea class="bl-textarea" id="bl-notes" placeholder="Observations, anomalies, additional soil description…"></textarea>
+        <button class="bl-mic-btn" id="bl-mic-btn" title="Tap to dictate">🎙️</button>
+      </div>
+    </div>
+
+    <!-- Save -->
+    <div class="bl-section">
+      <button class="bl-save-btn" id="bl-save-btn">💾 Save &amp; Mark Done</button>
+    </div>
+    <div style="height:48px"></div>
+  </div>
+</div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
@@ -883,6 +1196,8 @@ const VIS_KEY='sbmm_vis_v3';
 const LOG_KEY='sbmm_log_v3';
 const PHOTO_KEY='sbmm_photos_v3';
 const GH_KEY='sbmm_gh_token';
+const BORING_KEY='sbmm_boring_v1';
+const GPS_LOCK_FT=3.0; // ft — target accuracy threshold for sample logging
 
 const PREFS_DEF={unit:'ft',autoCenter:true,vibrate:true,autoNav:false};
 
@@ -890,6 +1205,7 @@ let PREFS=Object.assign({},PREFS_DEF,JSON.parse(localStorage.getItem(PREFS_KEY)|
 let VISITED=JSON.parse(localStorage.getItem(VIS_KEY)||'{}');
 let VISIT_LOG=JSON.parse(localStorage.getItem(LOG_KEY)||'[]');
 let PHOTOS=JSON.parse(localStorage.getItem(PHOTO_KEY)||'{}');
+let BORING_LOGS=JSON.parse(localStorage.getItem(BORING_KEY)||'{}');
 
 const S={
   lat:null,lon:null,acc:null,
@@ -1106,8 +1422,17 @@ function startGPS(){
 
 function setGPSGood(acc){
   const pill=document.getElementById('gps-pill');
+  const ft=acc*3.28084;
   pill.className='gps-pill good';
-  document.getElementById('gps-label').textContent=`±${Math.round(acc*3.28084)} ft`;
+  document.getElementById('gps-label').textContent=`±${ft.toFixed(1)} ft`;
+  // Color code by accuracy: green ≤3ft, yellow ≤10ft, red >10ft
+  if(ft<=GPS_LOCK_FT){
+    pill.style.borderColor='rgba(34,197,94,0.7)';pill.style.color='#22c55e';
+  }else if(ft<=10){
+    pill.style.borderColor='rgba(234,179,8,0.7)';pill.style.color='#eab308';
+  }else{
+    pill.style.borderColor='rgba(239,68,68,0.7)';pill.style.color='#ef4444';
+  }
 }
 function setGPSBad(msg){
   const pill=document.getElementById('gps-pill');
@@ -1224,10 +1549,16 @@ function updateCard(){
   const badge=document.getElementById('card-photo-badge');
   badge.style.display=pc>0?'flex':'none';
   badge.textContent=pc;
-  // Update visit button
+  // Update log/visit button
   const vBtn=document.getElementById('card-visit');
-  if(VISITED[pt.id]){vBtn.textContent='✓ Visited';vBtn.style.background='#334155'}
-  else{vBtn.textContent='✓ Mark Done';vBtn.style.background='#10b981'}
+  const hasLog=!!BORING_LOGS[pt.id];
+  if(VISITED[pt.id]){
+    vBtn.textContent=hasLog?'✓ Done':'✓ Done (no log)';
+    vBtn.style.background='#334155';
+  }else{
+    vBtn.textContent='📋 Log Sample';
+    vBtn.style.background='#10b981';
+  }
 }
 
 function updateCardStats(){
@@ -1273,6 +1604,306 @@ function autoSelectNearest(){
   un.forEach(p=>{p._d=hav(S.lat,S.lon,p.lat,p.lon)});
   un.sort((a,b)=>a._d-b._d);
   selectPoint(un[0]);
+}
+
+// ================================================================
+// BORING LOG
+// ================================================================
+let _boringPt=null;
+let _uscsState={};
+let _uscsResult=null;
+let _pidNA=false;
+let _speechRec=null;
+let _micActive=false;
+let _fromArrival=false;
+
+const USCS_COARSE_DENSITY=['Very Loose','Loose','Medium Dense','Dense','Very Dense'];
+const USCS_FINE_DENSITY=['Very Soft','Soft','Firm','Stiff','Very Stiff','Hard'];
+
+function getUscsResult(st){
+  const t=st.type,f=st.fines,g=st.grading,p=st.plasticity;
+  if(t==='organic')return{sym:'Pt',desc:'Peat / Highly Organic',coarse:false};
+  if(t==='silt')return p==='high'?{sym:'MH',desc:'Elastic Silt (High Plasticity)',coarse:false}:{sym:'ML',desc:'Silt (Low Plasticity)',coarse:false};
+  if(t==='clay')return p==='high'?{sym:'CH',desc:'Fat Clay (High Plasticity)',coarse:false}:{sym:'CL',desc:'Clay (Low Plasticity)',coarse:false};
+  const isG=(t==='gravel');
+  if(f==='silty')return{sym:isG?'GM':'SM',desc:isG?'Silty GRAVEL':'Silty SAND',coarse:true};
+  if(f==='clayey')return{sym:isG?'GC':'SC',desc:isG?'Clayey GRAVEL':'Clayey SAND',coarse:true};
+  if(g==='well')return{sym:isG?'GW':'SW',desc:isG?'Well-Graded GRAVEL':'Well-Graded SAND',coarse:true};
+  if(g==='poor')return{sym:isG?'GP':'SP',desc:isG?'Poorly-Graded GRAVEL':'Poorly-Graded SAND',coarse:true};
+  return null;
+}
+
+function showUscsResult(){
+  if(!_uscsResult)return;
+  document.getElementById('uscs-result-area').style.display='block';
+  document.getElementById('uscs-wizard-wrap').style.display='none';
+  document.getElementById('uscs-symbol-big').textContent=_uscsResult.sym;
+  document.getElementById('uscs-desc-text').textContent=_uscsResult.desc;
+  updateDensityChips(_uscsResult.coarse);
+}
+
+function updateDensityChips(isCoarse){
+  const container=document.getElementById('density-chips');
+  const label=document.getElementById('density-label');
+  if(isCoarse===null||isCoarse===undefined){
+    container.innerHTML='<span style="font-size:13px;color:var(--text3)">Complete USCS classification first</span>';
+    label.textContent='Density / Consistency';return;
+  }
+  label.textContent=isCoarse?'Relative Density':'Consistency';
+  const opts=isCoarse?USCS_COARSE_DENSITY:USCS_FINE_DENSITY;
+  container.innerHTML=opts.map(o=>`<button class="bl-chip" data-val="${o}">${o}</button>`).join('');
+  container.querySelectorAll('.bl-chip').forEach(b=>b.addEventListener('click',()=>singleChip(container,b)));
+}
+
+function singleChip(container,clicked){
+  container.querySelectorAll('.bl-chip').forEach(b=>b.classList.remove('active'));
+  clicked.classList.add('active');
+}
+
+function resetBoringForm(){
+  _uscsState={type:null,fines:null,grading:null,plasticity:null};
+  _uscsResult=null;_pidNA=false;_micActive=false;
+  // Clear all chips
+  document.querySelectorAll('#boring-sheet .bl-chip').forEach(c=>{c.classList.remove('active');});
+  document.querySelectorAll('#boring-sheet .color-chip').forEach(c=>c.classList.remove('sel'));
+  document.getElementById('color-chips').dataset.selected='';
+  // Reset USCS wizard
+  document.getElementById('uscs-result-area').style.display='none';
+  document.getElementById('uscs-wizard-wrap').style.display='block';
+  ['uscs-step-2a','uscs-step-2b','uscs-step-3'].forEach(id=>document.getElementById(id).style.display='none');
+  document.getElementById('uscs-step-1').style.display='block';
+  updateDensityChips(null);
+  // Reset inputs
+  document.getElementById('pid-input').value='';
+  document.getElementById('pid-input').disabled=false;
+  document.getElementById('pid-na-label').style.display='none';
+  document.getElementById('pid-na-btn').classList.remove('active');
+  document.getElementById('odor-type-chips').style.display='none';
+  document.getElementById('depth-custom-input').style.display='none';
+  document.getElementById('depth-custom-input').value='';
+  document.getElementById('bl-notes').value='';
+  if(_micActive&&_speechRec){try{_speechRec.stop();}catch(e){}_micActive=false;}
+  document.getElementById('bl-mic-btn').classList.remove('recording');
+  document.getElementById('bl-mic-btn').textContent='🎙️';
+}
+
+function openBoringLog(pt){
+  _boringPt=pt;
+  resetBoringForm();
+  document.getElementById('boring-pt-id').textContent=pt.id;
+  const now=new Date();
+  document.getElementById('boring-ts').textContent=
+    now.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})+
+    ' · '+now.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
+  // GPS badge
+  const badge=document.getElementById('boring-gps-badge');
+  if(S.acc!=null){
+    const ft=S.acc*3.28084;
+    badge.textContent=`GPS ±${ft.toFixed(1)} ft`;
+    badge.style.background=ft<=GPS_LOCK_FT?'rgba(34,197,94,0.15)':ft<=10?'rgba(234,179,8,0.15)':'rgba(239,68,68,0.15)';
+    badge.style.color=ft<=GPS_LOCK_FT?'#22c55e':ft<=10?'#eab308':'#ef4444';
+  }else{badge.textContent='GPS unknown';badge.style.background='';badge.style.color='var(--text3)'}
+  // Pre-fill status = Collected
+  const statusDefault=document.querySelector('#status-chips [data-val="Collected"]');
+  if(statusDefault)statusDefault.classList.add('active');
+  document.getElementById('boring-sheet').classList.add('open');
+  document.getElementById('boring-body').scrollTop=0;
+}
+
+function closeBoringLog(){
+  document.getElementById('boring-sheet').classList.remove('open');
+  _boringPt=null;
+}
+
+function checkGPSAndOpenLog(pt,fromArrival=false){
+  if(!pt)return;
+  // If already marked: offer to unmark
+  if(VISITED[pt.id]){
+    if(confirm(`Unmark ${pt.id} as complete and clear its log?`)){
+      delete VISITED[pt.id];
+      delete BORING_LOGS[pt.id];
+      VISIT_LOG=VISIT_LOG.filter(v=>v.id!==pt.id);
+      localStorage.setItem(BORING_KEY,JSON.stringify(BORING_LOGS));
+      saveVis();drawMapMarkers();renderList();updateProgress();updateCard();
+    }
+    return;
+  }
+  _fromArrival=fromArrival;
+  const accFt=S.acc!=null?S.acc*3.28084:null;
+  if(accFt==null||accFt>GPS_LOCK_FT){
+    document.getElementById('gps-modal-acc').textContent=accFt!=null?`±${accFt.toFixed(1)} ft`:'unknown';
+    document.getElementById('gps-modal-overlay').classList.add('show');
+    document.getElementById('gps-btn-ok').onclick=()=>{
+      document.getElementById('gps-modal-overlay').classList.remove('show');
+      openBoringLog(pt);
+    };
+    document.getElementById('gps-btn-wait').onclick=()=>document.getElementById('gps-modal-overlay').classList.remove('show');
+  }else{
+    openBoringLog(pt);
+  }
+}
+
+function initBoringLogEvents(){
+  // Close
+  document.getElementById('boring-close').addEventListener('click',closeBoringLog);
+
+  // Depth chips
+  const depthCont=document.getElementById('depth-chips');
+  depthCont.querySelectorAll('.bl-chip:not(#depth-custom-toggle)').forEach(b=>{
+    b.addEventListener('click',()=>{
+      singleChip(depthCont,b);
+      document.getElementById('depth-custom-input').style.display='none';
+    });
+  });
+  document.getElementById('depth-custom-toggle').addEventListener('click',function(){
+    singleChip(depthCont,this);
+    const inp=document.getElementById('depth-custom-input');
+    inp.style.display='block';inp.focus();
+  });
+
+  // USCS wizard
+  document.querySelectorAll('[data-step1]').forEach(btn=>btn.addEventListener('click',function(){
+    _uscsState={type:this.dataset.step1,fines:null,grading:null,plasticity:null};
+    document.getElementById('uscs-step-1').style.display='none';
+    const t=_uscsState.type;
+    if(t==='gravel'||t==='sand'){document.getElementById('uscs-step-2a').style.display='block';}
+    else if(t==='silt'||t==='clay'){document.getElementById('uscs-step-3').style.display='block';}
+    else{_uscsResult=getUscsResult(_uscsState);showUscsResult();}
+  }));
+  document.querySelectorAll('[data-step2a]').forEach(btn=>btn.addEventListener('click',function(){
+    _uscsState.fines=this.dataset.step2a;
+    document.getElementById('uscs-step-2a').style.display='none';
+    if(_uscsState.fines==='clean'){document.getElementById('uscs-step-2b').style.display='block';}
+    else{_uscsResult=getUscsResult(_uscsState);showUscsResult();}
+  }));
+  document.querySelectorAll('[data-step2b]').forEach(btn=>btn.addEventListener('click',function(){
+    _uscsState.grading=this.dataset.step2b;
+    document.getElementById('uscs-step-2b').style.display='none';
+    _uscsResult=getUscsResult(_uscsState);showUscsResult();
+  }));
+  document.querySelectorAll('[data-step3]').forEach(btn=>btn.addEventListener('click',function(){
+    _uscsState.plasticity=this.dataset.step3;
+    document.getElementById('uscs-step-3').style.display='none';
+    _uscsResult=getUscsResult(_uscsState);showUscsResult();
+  }));
+  document.getElementById('uscs-redo').addEventListener('click',()=>{
+    _uscsResult=null;
+    document.getElementById('uscs-result-area').style.display='none';
+    document.getElementById('uscs-wizard-wrap').style.display='block';
+    ['uscs-step-2a','uscs-step-2b','uscs-step-3'].forEach(id=>document.getElementById(id).style.display='none');
+    document.getElementById('uscs-step-1').style.display='block';
+    updateDensityChips(null);
+  });
+
+  // Color chips (custom selection to preserve inline bg color)
+  const colorCont=document.getElementById('color-chips');
+  colorCont.querySelectorAll('.color-chip').forEach(b=>b.addEventListener('click',()=>{
+    colorCont.querySelectorAll('.color-chip').forEach(x=>x.classList.remove('sel'));
+    b.classList.add('sel');
+    colorCont.dataset.selected=b.dataset.val;
+  }));
+
+  // Moisture chips
+  const moistCont=document.getElementById('moisture-chips');
+  moistCont.querySelectorAll('.bl-chip').forEach(b=>b.addEventListener('click',()=>singleChip(moistCont,b)));
+
+  // Odor level chips
+  const odorLvlCont=document.getElementById('odor-level-chips');
+  odorLvlCont.querySelectorAll('.bl-chip').forEach(b=>b.addEventListener('click',()=>{
+    singleChip(odorLvlCont,b);
+    document.getElementById('odor-type-chips').style.display=b.dataset.val==='None'?'none':'flex';
+  }));
+  const odorTypeCont=document.getElementById('odor-type-chips');
+  odorTypeCont.querySelectorAll('.bl-chip').forEach(b=>b.addEventListener('click',()=>singleChip(odorTypeCont,b)));
+
+  // Stain chips
+  const stainCont=document.getElementById('stain-chips');
+  stainCont.querySelectorAll('.bl-chip').forEach(b=>b.addEventListener('click',()=>singleChip(stainCont,b)));
+
+  // Status chips
+  const statusCont=document.getElementById('status-chips');
+  statusCont.querySelectorAll('.bl-chip').forEach(b=>b.addEventListener('click',()=>singleChip(statusCont,b)));
+
+  // PID N/A
+  document.getElementById('pid-na-btn').addEventListener('click',function(){
+    _pidNA=!_pidNA;
+    this.classList.toggle('active',_pidNA);
+    const inp=document.getElementById('pid-input');
+    inp.disabled=_pidNA;if(_pidNA)inp.value='';
+    document.getElementById('pid-na-label').style.display=_pidNA?'inline':'none';
+  });
+
+  // Voice dictation
+  const SpeechRec=window.SpeechRecognition||window.webkitSpeechRecognition;
+  const micBtn=document.getElementById('bl-mic-btn');
+  if(SpeechRec){
+    _speechRec=new SpeechRec();
+    _speechRec.continuous=true;_speechRec.interimResults=false;_speechRec.lang='en-US';
+    _speechRec.onresult=e=>{
+      const t=Array.from(e.results).slice(e.resultIndex).map(r=>r[0].transcript).join(' ');
+      const ta=document.getElementById('bl-notes');
+      ta.value=(ta.value?ta.value+' ':'')+t.trim();
+    };
+    _speechRec.onend=()=>{_micActive=false;micBtn.classList.remove('recording');micBtn.textContent='🎙️'};
+    micBtn.addEventListener('click',()=>{
+      if(!_micActive){try{_speechRec.start();_micActive=true;micBtn.classList.add('recording');micBtn.textContent='⏹';}catch(e){}}
+      else{try{_speechRec.stop();}catch(e){}}
+    });
+  }else{
+    micBtn.style.opacity='0.3';micBtn.title='Speech recognition not available on this device';
+  }
+
+  // Save & Mark Done
+  document.getElementById('bl-save-btn').addEventListener('click',()=>{
+    if(!_boringPt)return;
+    // Read all form values
+    const depthActive=document.querySelector('#depth-chips .bl-chip.active');
+    let depth='';
+    if(depthActive){
+      depth=depthActive.id==='depth-custom-toggle'
+        ?document.getElementById('depth-custom-input').value.trim()
+        :depthActive.dataset.val;
+    }
+    const color=document.getElementById('color-chips').dataset.selected||'';
+    const moistActive=document.querySelector('#moisture-chips .bl-chip.active');
+    const densityActive=document.querySelector('#density-chips .bl-chip.active');
+    const odorLvlActive=document.querySelector('#odor-level-chips .bl-chip.active');
+    const odorTypeActive=document.querySelector('#odor-type-chips .bl-chip.active');
+    const stainActive=document.querySelector('#stain-chips .bl-chip.active');
+    const statusActive=document.querySelector('#status-chips .bl-chip.active');
+    const log={
+      id:_boringPt.id,
+      timestamp:new Date().toISOString(),
+      lat:S.lat,lon:S.lon,
+      accuracy_ft:S.acc!=null?+(S.acc*3.28084).toFixed(2):null,
+      depth:depth,
+      uscs:_uscsResult?_uscsResult.sym:'',
+      uscs_desc:_uscsResult?_uscsResult.desc:'',
+      color:color,
+      moisture:moistActive?moistActive.dataset.val:'',
+      density_consistency:densityActive?densityActive.dataset.val:'',
+      pid_ppm:_pidNA?'N/A':(document.getElementById('pid-input').value||''),
+      odor_level:odorLvlActive?odorLvlActive.dataset.val:'',
+      odor_type:odorTypeActive?odorTypeActive.dataset.val:'',
+      staining:stainActive?stainActive.dataset.val:'',
+      status:statusActive?statusActive.dataset.val:'Collected',
+      notes:document.getElementById('bl-notes').value.trim(),
+    };
+    BORING_LOGS[_boringPt.id]=log;
+    localStorage.setItem(BORING_KEY,JSON.stringify(BORING_LOGS));
+    const savedPt=_boringPt;
+    markVisited(savedPt);
+    closeBoringLog();
+    // If opened from arrival popup: auto-navigate to next nearest unvisited point
+    if(_fromArrival){
+      const un=R2.filter(p=>!VISITED[p.id]);
+      if(un.length&&S.lat!=null){
+        un.forEach(p=>{p._d=hav(S.lat,S.lon,p.lat,p.lon)});
+        un.sort((a,b)=>a._d-b._d);selectPoint(un[0]);
+      }else{deselectPoint();}
+      _fromArrival=false;
+    }
+  });
 }
 
 // ================================================================
@@ -1750,7 +2381,7 @@ function renderList(){
       setView('map');
     });
     row.querySelector('.pt-check-btn').addEventListener('click',e=>{
-      e.stopPropagation();markVisited(pt);
+      e.stopPropagation();selectPoint(pt);checkGPSAndOpenLog(pt);
     });
     frag.appendChild(row);
   });
@@ -1923,11 +2554,34 @@ function initSettings(){
   if(PREFS.unit==='m'){document.getElementById('u-m').classList.add('on');document.getElementById('u-ft').classList.remove('on')}
 
   document.getElementById('export-btn').addEventListener('click',()=>{
-    let csv='Point_ID,Time_Visited,Lat,Lon\n';
-    VISIT_LOG.forEach(v=>{csv+=`${v.id},${v.time},${v.lat||''},${v.lon||''}\n`});
+    const headers=['Point_ID','Timestamp','Lat','Lon','Accuracy_ft','Depth','USCS','USCS_Description','Color','Moisture','Density_Consistency','PID_ppm','Odor_Level','Odor_Type','Staining','Status','Notes'];
+    let csv=headers.join(',')+'\n';
+    VISIT_LOG.forEach(v=>{
+      const b=BORING_LOGS[v.id]||{};
+      const row=[
+        v.id,
+        b.timestamp||v.time,
+        (b.lat||v.lat||'').toString(),
+        (b.lon||v.lon||'').toString(),
+        b.accuracy_ft||'',
+        b.depth||'',
+        b.uscs||'',
+        b.uscs_desc||'',
+        b.color||'',
+        b.moisture||'',
+        b.density_consistency||'',
+        b.pid_ppm||'',
+        b.odor_level||'',
+        b.odor_type||'',
+        b.staining||'',
+        b.status||'Collected',
+        `"${(b.notes||'').replace(/"/g,'""')}"`,
+      ];
+      csv+=row.join(',')+'\n';
+    });
     const a=document.createElement('a');
     a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
-    a.download=`sbmm_visited_${new Date().toISOString().split('T')[0]}.csv`;a.click();
+    a.download=`sbmm_field_log_${new Date().toISOString().split('T')[0]}.csv`;a.click();
   });
   document.getElementById('reset-btn').addEventListener('click',()=>{
     if(confirm('Clear all visited points and visit log?')){
@@ -1995,7 +2649,7 @@ function initUI(){
   // Point card
   document.getElementById('card-close').addEventListener('click',deselectPoint);
   document.getElementById('card-nav').addEventListener('click',()=>setView('ar'));
-  document.getElementById('card-visit').addEventListener('click',()=>{if(S.sel)markVisited(S.sel)});
+  document.getElementById('card-visit').addEventListener('click',()=>{if(S.sel)checkGPSAndOpenLog(S.sel)});
   document.getElementById('card-photo').addEventListener('click',()=>{if(S.sel)openPhotos(S.sel)});
 
   // Arrival
@@ -2004,13 +2658,8 @@ function initUI(){
   });
   document.getElementById('arr-visit').addEventListener('click',()=>{
     if(S.sel){
-      markVisited(S.sel);S.arrDismissed[S.sel.id]=true;hideArrival();
-      // Auto-select next nearest
-      const un=R2.filter(p=>!VISITED[p.id]);
-      if(un.length&&S.lat!=null){
-        un.forEach(p=>{p._d=hav(S.lat,S.lon,p.lat,p.lon)});
-        un.sort((a,b)=>a._d-b._d);selectPoint(un[0]);
-      }else{deselectPoint()}
+      S.arrDismissed[S.sel.id]=true;hideArrival();
+      checkGPSAndOpenLog(S.sel,true);
     }
   });
 
@@ -2056,6 +2705,7 @@ function init(){
   initUI();
   initSettings();
   initLayerPanel();
+  initBoringLogEvents();
 
   drawMapMarkers();
   drawHistLayers();
