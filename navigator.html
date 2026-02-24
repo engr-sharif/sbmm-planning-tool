@@ -25,22 +25,33 @@
   --ir:env(safe-area-inset-right,0px);
   --tab-h:56px;
 }
-html,body{
-  height:100%;width:100%;overflow:hidden;
+html{
+  height:-webkit-fill-available;
+  height:100dvh;
+}
+body{
+  width:100%;height:100%;
+  min-height:-webkit-fill-available;
+  overflow:hidden;
   font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI",Helvetica,sans-serif;
   background:var(--bg);color:var(--text);
   touch-action:manipulation;-webkit-user-select:none;user-select:none;
+  /* Prevent overscroll bounce on body */
+  overscroll-behavior:none;
+  position:fixed;inset:0;
 }
 
 /* ================================================================
    VIEWS
 ================================================================ */
 .view{
-  position:fixed;inset:0;
+  position:fixed;top:0;left:0;right:0;
+  bottom:0;
   padding-bottom:calc(var(--tab-h) + var(--ib));
-  display:none;
+  display:none;overflow:hidden;
 }
 .view.active{display:block}
+#list-view.active{display:flex}
 
 /* ================================================================
    MAP VIEW
@@ -312,13 +323,12 @@ html,body{
 #list-view{
   background:var(--bg);overflow:hidden;
   display:flex;flex-direction:column;
-  padding-top:calc(var(--it) + 60px);
+  padding-top:0;
 }
 .list-header{
-  position:fixed;top:0;left:0;right:0;z-index:100;
-  padding:calc(var(--it) + 12px) 16px 10px;
-  background:rgba(15,23,42,0.97);backdrop-filter:blur(14px);
-  border-bottom:1px solid var(--border);
+  flex-shrink:0;
+  padding:calc(var(--it) + 14px) 16px 10px;
+  background:var(--bg);border-bottom:1px solid var(--border);
 }
 .list-title-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
 .list-title{font-size:20px;font-weight:800}
@@ -331,18 +341,19 @@ html,body{
 .fchip{
   padding:7px 16px;border-radius:20px;border:1px solid var(--border);
   background:transparent;color:var(--text2);font-size:13px;font-weight:500;
-  white-space:nowrap;cursor:pointer;flex-shrink:0;transition:all .15s;
+  white-space:nowrap;cursor:pointer;flex-shrink:0;transition:all .15s;min-height:36px;
 }
 .fchip.on{background:var(--primary);border-color:var(--primary);color:#fff}
 
-.list-scroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
+.list-scroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;min-height:0}
 .pt-row{
-  display:flex;align-items:center;gap:12px;
-  padding:14px 16px;border-bottom:1px solid rgba(71,85,105,0.2);
-  cursor:pointer;transition:background .1s;
+  display:flex;align-items:center;gap:14px;
+  padding:15px 16px;border-bottom:1px solid rgba(51,65,85,0.5);
+  cursor:pointer;min-height:60px;
+  -webkit-tap-highlight-color:transparent;
 }
-.pt-row:active{background:rgba(59,130,246,0.1)}
-.pt-row.selected{background:rgba(59,130,246,0.15);border-left:3px solid var(--primary)}
+.pt-row:active{background:rgba(59,130,246,0.08)}
+.pt-row.selected{background:rgba(59,130,246,0.12);border-left:3px solid var(--primary);padding-left:13px}
 .pt-row-dot{width:13px;height:13px;border-radius:50%;flex-shrink:0}
 .pt-row-body{flex:1;min-width:0}
 .pt-row-id{font-size:16px;font-weight:700}
@@ -366,21 +377,23 @@ html,body{
   position:fixed;left:0;right:0;bottom:0;z-index:700;
   height:calc(var(--tab-h) + var(--ib));
   padding-bottom:var(--ib);
-  background:rgba(15,23,42,0.97);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
-  border-top:1px solid rgba(71,85,105,0.3);
+  background:rgba(10,17,33,0.98);
+  -webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);
+  border-top:1px solid rgba(51,65,85,0.6);
   display:flex;
 }
 .tab-btn{
   flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
-  gap:3px;padding:8px 4px;cursor:pointer;border:none;background:transparent;
-  color:var(--text3);transition:color .15s;
+  gap:4px;padding:6px 4px;cursor:pointer;border:none;background:transparent;
+  color:var(--text3);transition:color .2s;min-height:44px;
+  -webkit-tap-highlight-color:transparent;
 }
 .tab-btn.active{color:var(--primary)}
-.tab-btn svg{width:22px;height:22px;stroke-width:2;transition:transform .15s}
-.tab-btn.active svg{transform:scale(1.1)}
-.tab-btn span{font-size:10px;font-weight:600;letter-spacing:0.3px}
+.tab-btn svg{width:23px;height:23px;stroke-width:2;transition:transform .2s,opacity .2s;opacity:0.55}
+.tab-btn.active svg{transform:scale(1.08);opacity:1}
+.tab-btn span{font-size:10px;font-weight:600;letter-spacing:0.5px;text-transform:uppercase}
 .tab-indicator{
-  position:absolute;top:0;height:2px;border-radius:1px;background:var(--primary);
+  position:absolute;top:0;height:2px;border-radius:0 0 2px 2px;background:var(--primary);
   transition:left .25s cubic-bezier(0.4,0,0.2,1),width .25s;
 }
 
@@ -478,18 +491,19 @@ html,body{
 ================================================================ */
 .perm-screen{
   position:fixed;inset:0;z-index:1000;background:var(--bg);
-  display:flex;flex-direction:column;align-items:center;justify-content:center;
-  padding:40px;text-align:center;
+  display:flex;flex-direction:column;align-items:center;justify-content:flex-end;
+  padding:0 0 calc(var(--ib) + 40px);text-align:center;
 }
-.perm-icon{font-size:64px;margin-bottom:24px}
-.perm-title{font-size:28px;font-weight:900;margin-bottom:10px}
-.perm-desc{font-size:15px;color:var(--text2);line-height:1.6;margin-bottom:32px}
+.perm-content{padding:40px 36px;width:100%}
+.perm-icon{font-size:56px;margin-bottom:20px}
+.perm-title{font-size:26px;font-weight:900;margin-bottom:8px}
+.perm-desc{font-size:15px;color:var(--text2);line-height:1.55;margin-bottom:36px}
 .perm-btn{
-  padding:16px 48px;border-radius:16px;border:none;
+  display:block;width:100%;padding:17px;border-radius:14px;border:none;
   background:var(--primary);color:#fff;font-size:17px;font-weight:700;cursor:pointer;
-  box-shadow:0 4px 20px rgba(59,130,246,0.4);
+  box-shadow:0 4px 20px rgba(59,130,246,0.35);letter-spacing:0.2px;
 }
-.perm-skip{margin-top:14px;font-size:14px;color:var(--text3);cursor:pointer;padding:8px}
+.perm-skip{margin-top:14px;font-size:15px;color:var(--text3);cursor:pointer;padding:12px;display:block}
 
 /* ================================================================
    MISC
@@ -525,11 +539,13 @@ html,body{
 
 <!-- PERMISSION SCREEN -->
 <div class="perm-screen" id="perm-screen">
-  <div class="perm-icon">🧭</div>
-  <div class="perm-title">SBMM Field Navigator</div>
-  <div class="perm-desc">This app uses GPS, compass, and camera to navigate you to sampling points in the field. Tap below to enable sensors.</div>
-  <button class="perm-btn" id="perm-btn">Enable Sensors & Start</button>
-  <div class="perm-skip" id="perm-skip">Continue without sensors</div>
+  <div class="perm-content">
+    <div class="perm-icon">🧭</div>
+    <div class="perm-title">SBMM Field Navigator</div>
+    <div class="perm-desc">Uses GPS, compass, and camera to navigate you to each sampling point. Runs fully in your browser — no install needed.</div>
+    <button class="perm-btn" id="perm-btn">Enable Sensors &amp; Start</button>
+    <span class="perm-skip" id="perm-skip">Continue without sensors</span>
+  </div>
 </div>
 
 <!-- ======================================================
@@ -784,6 +800,22 @@ html,body{
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 'use strict';
+// ================================================================
+// SAFARI VIEWPORT FIX
+// Safari's 100vh includes the browser chrome — dynamically set real height
+// ================================================================
+function setVH(){
+  const vh=window.innerHeight;
+  document.documentElement.style.setProperty('--app-h',vh+'px');
+  // Also fix position:fixed bottom — Safari needs explicit height
+  document.querySelectorAll('.view').forEach(v=>{
+    v.style.height=vh+'px';
+  });
+}
+setVH();
+window.addEventListener('resize',setVH);
+window.addEventListener('orientationchange',()=>setTimeout(setVH,200));
+
 // ================================================================
 // DATA
 // ================================================================
