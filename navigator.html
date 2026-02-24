@@ -212,6 +212,7 @@ body{
 #ar-video{
   position:absolute;inset:0;width:100%;height:100%;
   object-fit:cover;transform:scaleX(1);
+  transition:opacity .4s ease;opacity:0;
 }
 #ar-canvas{
   position:absolute;inset:0;width:100%;height:100%;
@@ -1335,172 +1336,257 @@ function arLoop(){
   renderAR();
 }
 
-// iPhone camera approximate FOV
-const FOV_H=65;  // horizontal degrees visible
-const FOV_V=48;  // vertical degrees visible
-const EYE_H=1.6; // assumed eye height in meters
+// ================================================================
+// AR ENGINE — Two modes based on device tilt
+// ================================================================
+const FOV_H=65; // iPhone horizontal FOV degrees
 
-// Convert device beta to pitch angle:
-// beta=90 → looking at horizon (pitch=0)
-// beta>90 → tilted down, seeing ground (pitch positive = below horizon)
-// beta<90 → tilted up (pitch negative = above horizon)
-function devicePitch(){
-  // S.beta is 0=flat, 90=upright, 180=flat face-down
-  // We want: 0=horizon, positive=looking down
-  return S.beta - 90; // positive = below horizon
+// beta thresholds
+const FLAT_THRESH=35;  // phone flat = compass mode
+const AR_THRESH=55;    // phone upright = AR camera mode
+// Between 35-55: crossfade
+
+function getTiltMode(){
+  const b=S.beta!=null?S.beta:90;
+  if(b<FLAT_THRESH)return'compass';
+  if(b>AR_THRESH)return'ar';
+  return'transition';
 }
 
-// Project a ground-level point to screen coordinates (Sky Map style)
-// Returns {x, y, inView, alpha} or null if too far off screen
-function projectPoint(ptLat,ptLon){
-  if(S.lat==null||S.hdg==null)return null;
-  const dist=hav(S.lat,S.lon,ptLat,ptLon);
-  const b=brg(S.lat,S.lon,ptLat,ptLon);
+// ---- COMPASS MODE (phone flat) --------------------------------
+function renderCompass(ctx,W,H){
+  const cx=W/2,cy=H*0.48;
+  const R=Math.min(W,H)*0.32; // compass ring radius
 
-  // Horizontal: bearing difference from device heading
-  const hRel=relBrg(b,S.hdg); // -180..180, positive=right
+  // Background
+  ctx.fillStyle='rgba(10,15,30,0.9)';
+  ctx.fillRect(0,0,W,H);
 
-  // Vertical: the point is on the ground below the horizon
-  // Vertical angle down to point = atan(EYE_H / dist) in degrees
-  const vAngle=Math.atan(EYE_H/Math.max(dist,1))*180/Math.PI; // degrees below horizon
+  // Outer ring
+  ctx.beginPath();ctx.arc(cx,cy,R+14,0,Math.PI*2);
+  ctx.strokeStyle='rgba(71,85,105,0.4)';ctx.lineWidth=1;ctx.stroke();
 
-  // Device pitch: how many degrees below horizon the camera is pointing
-  const pitch=devicePitch(); // positive = camera pointing down
+  if(S.hdg==null){
+    ctx.fillStyle='rgba(255,255,255,0.5)';ctx.font='16px -apple-system';
+    ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText('Enable compass — tap Locate',cx,cy);
+    return;
+  }
 
-  // Vertical: point is vAngle degrees below horizon.
-  // Camera is pitch degrees below horizon.
-  // If pitch < vAngle: camera above point → point appears LOW on screen (+Y)
-  // If pitch > vAngle: camera below point → point appears HIGH on screen (-Y)
-  const vRel=vAngle-pitch; // positive = point below camera center = lower on screen
+  const hdg=S.hdg;
 
-  const halfH=FOV_H/2;
-  const halfV=FOV_V/2;
+  // Cardinal ticks + labels
+  const cardinals=[['N',0,'#ef4444'],['E',90,'#fff'],['S',180,'#fff'],['W',270,'#fff']];
+  for(let deg=0;deg<360;deg+=10){
+    const a=(deg-hdg)*Math.PI/180-Math.PI/2;
+    const isMaj=deg%30===0;
+    const r1=R+(isMaj?8:4);
+    ctx.beginPath();
+    ctx.moveTo(cx+R*Math.cos(a),cy+R*Math.sin(a));
+    ctx.lineTo(cx+r1*Math.cos(a),cy+r1*Math.sin(a));
+    ctx.strokeStyle=isMaj?'rgba(255,255,255,0.5)':'rgba(255,255,255,0.2)';
+    ctx.lineWidth=isMaj?1.5:1;ctx.stroke();
+  }
+  cardinals.forEach(([label,deg,color])=>{
+    const a=(deg-hdg)*Math.PI/180-Math.PI/2;
+    const lx=cx+(R+24)*Math.cos(a),ly=cy+(R+24)*Math.sin(a);
+    ctx.fillStyle=color;ctx.font=`bold 15px -apple-system`;
+    ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(label,lx,ly);
+  });
 
-  // Check if in FOV (with margins for smooth fade)
-  const hMargin=halfH+25;
-  const vMargin=halfV+20;
-  if(Math.abs(hRel)>hMargin||Math.abs(vRel)>vMargin)return null;
+  // Nearby points on compass ring (within 500m)
+  if(S.lat!=null){
+    R2.forEach(pt=>{
+      const d=hav(S.lat,S.lon,pt.lat,pt.lon);
+      if(d>500)return;
+      const b=brg(S.lat,S.lon,pt.lat,pt.lon);
+      const a=(b-hdg)*Math.PI/180-Math.PI/2;
+      const isSel=S.sel&&S.sel.id===pt.id;
+      const isVis=!!VISITED[pt.id];
+      let c=pt.t==='proposed'?'#818cf8':'#fbbf24';
+      if(isVis)c='#10b981';
+      if(isSel)c='#3b82f6';
+      const dotR=isSel?6:4;
+      const px=cx+R*Math.cos(a),py=cy+R*Math.sin(a);
+      ctx.beginPath();ctx.arc(px,py,dotR,0,Math.PI*2);
+      ctx.fillStyle=c;ctx.fill();
+      if(isSel){
+        ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.stroke();
+        // Line from center to point
+        ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(px,py);
+        ctx.strokeStyle='rgba(59,130,246,0.5)';ctx.lineWidth=1.5;
+        ctx.setLineDash([6,6]);ctx.stroke();ctx.setLineDash([]);
+      }
+    });
+  }
 
-  const canvas=document.getElementById('ar-canvas');
-  const W=canvas.width,H=canvas.height;
+  // Center crosshair — "you are here"
+  ctx.beginPath();ctx.arc(cx,cy,8,0,Math.PI*2);
+  ctx.fillStyle='#4285f4';ctx.fill();
+  ctx.strokeStyle='#fff';ctx.lineWidth=2.5;ctx.stroke();
+  [0,90,180,270].forEach(d=>{
+    const a=d*Math.PI/180;
+    ctx.beginPath();ctx.moveTo(cx+12*Math.cos(a),cy+12*Math.sin(a));
+    ctx.lineTo(cx+20*Math.cos(a),cy+20*Math.sin(a));
+    ctx.strokeStyle='rgba(255,255,255,0.5)';ctx.lineWidth=1;ctx.stroke();
+  });
 
-  const x=W/2+(hRel/halfH)*(W/2);
-  const y=H/2+(vRel/halfV)*(H/2);
+  // Heading readout
+  ctx.fillStyle='#fff';ctx.font='bold 32px -apple-system';
+  ctx.textAlign='center';ctx.textBaseline='top';
+  ctx.fillText(card(hdg)+' '+Math.round(hdg)+'°',cx,cy+R+40);
 
-  // Fade at edges
-  const hAlpha=Math.max(0,1-Math.abs(hRel)/hMargin);
-  const vAlpha=Math.max(0,1-Math.abs(vRel)/vMargin);
-  const alpha=hAlpha*vAlpha;
+  // Target info
+  if(S.sel&&S.lat!=null){
+    const d=hav(S.lat,S.lon,S.sel.lat,S.sel.lon);
+    const b=brg(S.lat,S.lon,S.sel.lat,S.sel.lon);
+    const rel=relBrg(b,hdg);
+    const dirText=rel<-5?'← Turn left':rel>5?'Turn right →':'Straight ahead';
+    ctx.fillStyle='rgba(255,255,255,0.6)';ctx.font='13px -apple-system';
+    ctx.fillText(`${S.sel.id} · ${fmtD(d)} · ${dirText}`,cx,cy+R+80);
+  }
 
-  return {x,y,dist,bearing:b,hRel,vRel,alpha,inView:alpha>0.05};
+  // Tilt hint
+  ctx.fillStyle='rgba(71,85,105,0.8)';ctx.font='13px -apple-system';
+  ctx.textAlign='center';ctx.textBaseline='bottom';
+  ctx.fillText('↑ Raise phone for AR camera view',cx,H-20);
 }
 
+// ---- AR CAMERA MODE (phone tilted) ---------------------------
+// Stable projection: horizontal = bearing, vertical = distance (perspective trick)
+// No physics jitter — all labels move together as a unit when tilting
+
+function renderARCamera(ctx,W,H,tiltFade){
+  const hdg=S.hdg!=null?S.hdg:0;
+
+  // Compass tape
+  drawCompassTape(ctx,W);
+
+  if(S.lat==null||S.hdg==null)return;
+
+  // Horizon line — subtle, doesn't move (camera is aimed at horizon in AR mode)
+  ctx.save();
+  ctx.strokeStyle=`rgba(255,255,255,${0.15*tiltFade})`;
+  ctx.lineWidth=1;ctx.setLineDash([10,14]);
+  ctx.beginPath();ctx.moveTo(0,H*0.38);ctx.lineTo(W,H*0.38);ctx.stroke();
+  ctx.setLineDash([]);ctx.restore();
+
+  // --- Project each point ---
+  // X: bearing → screen X (standard horizontal tracking)
+  // Y: distance → screen Y (closer = lower, farther = horizon)
+  //    + gentle tilt offset so tilting phone adjusts view naturally
+  const HORIZON_Y=H*0.25;
+  const GROUND_Y=H*0.65;
+  const MAX_DIST=300;
+
+  // Tilt offset: when phone tilts further down (beta increases past AR_THRESH),
+  // shift labels slightly upward (you're looking at closer ground)
+  const tiltExtra=Math.max(0,S.beta-AR_THRESH); // 0 at threshold, positive when more tilted
+  const tiltShift=tiltExtra*3; // gentle: 3px per extra degree
+
+  const projPts=[...R2].map(pt=>{
+    const dist=hav(S.lat,S.lon,pt.lat,pt.lon);
+    const b=brg(S.lat,S.lon,pt.lat,pt.lon);
+    const hRel=relBrg(b,hdg);
+    const halfH=FOV_H/2;
+    const hMargin=halfH+20;
+    if(Math.abs(hRel)>hMargin)return null;
+
+    const x=W/2+(hRel/halfH)*(W/2);
+    const distFrac=Math.min(1,dist/MAX_DIST);
+    const y=(GROUND_Y-(GROUND_Y-HORIZON_Y)*distFrac)-tiltShift;
+    const hAlpha=Math.max(0,1-Math.abs(hRel)/hMargin)*tiltFade;
+    if(hAlpha<0.05)return null;
+    return{pt,x,y,dist,bearing:b,hRel,alpha:hAlpha};
+  }).filter(Boolean);
+
+  // Render far→near so closer labels draw on top
+  projPts.sort((a,b)=>b.dist-a.dist);
+  projPts.forEach(p=>{
+    drawARLabel(ctx,p.x,p.y,p.dist,p.pt,p.alpha,
+      S.sel&&S.sel.id===p.pt.id,!!VISITED[p.pt.id]);
+  });
+
+  // Off-screen indicator for selected target
+  if(S.sel){
+    const d=hav(S.lat,S.lon,S.sel.lat,S.sel.lon);
+    const b=brg(S.lat,S.lon,S.sel.lat,S.sel.lon);
+    const rel=relBrg(b,hdg);
+    if(Math.abs(rel)>FOV_H/2+20){
+      drawEdgeArrow(ctx,W,H,rel<0?'left':'right',d,b,hdg);
+    }
+
+    // Update HUD DOM
+    document.getElementById('ar-target-id').textContent=S.sel.id+' · '+S.sel.d;
+    const de=document.getElementById('ar-dist');
+    de.textContent=fmtD(d);de.className='ar-dist '+dCls(d);
+    document.getElementById('ar-bearing').textContent=`${card(b)} · ${Math.round(b)}°`;
+    const eta=Math.round(d/67);
+    document.getElementById('ar-eta').textContent=eta>0?`~${eta} min walk`:'Almost there!';
+    document.getElementById('ar-arrow').style.transform=`rotate(${rel}deg)`;
+
+    // Arrival rings
+    if(d<5){
+      const t=Date.now()/1000;ctx.save();
+      for(let i=0;i<3;i++){
+        const prog=(t*0.5+i/3)%1;
+        ctx.beginPath();ctx.arc(W/2,H*0.45,50+prog*100,0,Math.PI*2);
+        ctx.strokeStyle=`rgba(16,185,129,${(1-prog)*0.6})`;
+        ctx.lineWidth=3;ctx.stroke();
+      }
+      ctx.restore();
+    }
+  }
+}
+
+// ---- Main render dispatcher ----------------------------------
 function renderAR(){
   const canvas=document.getElementById('ar-canvas');
   const ctx=canvas.getContext('2d');
   const W=canvas.width,H=canvas.height;
   ctx.clearRect(0,0,W,H);
 
-  // Horizon line hint (subtle)
-  if(S.hdg!=null){
-    const pitch=devicePitch();
-    // Draw a faint horizon line at the right height
-    const horizY=H/2+(pitch/( FOV_V/2))*(H/2);
-    ctx.save();
-    ctx.strokeStyle='rgba(255,255,255,0.12)';
-    ctx.lineWidth=1;
-    ctx.setLineDash([8,12]);
-    ctx.beginPath();ctx.moveTo(0,horizY);ctx.lineTo(W,horizY);ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.restore();
-  }
+  const beta=S.beta!=null?S.beta:90;
+  const mode=getTiltMode();
 
-  // === COMPASS TAPE ===
-  drawCompassTape(ctx,W);
-
-  // === AR POINT LABELS — Sky Map projection ===
-  if(S.lat!=null&&S.hdg!=null){
-    // Sort by distance descending so closer points render on top
-    const pts=[...R2].map(pt=>{
-      const proj=projectPoint(pt.lat,pt.lon);
-      return{pt,proj};
-    }).filter(x=>x.proj&&x.proj.inView);
-    pts.sort((a,b)=>b.proj.dist-a.proj.dist);
-
-    pts.forEach(({pt,proj})=>{
-      const isSel=S.sel&&S.sel.id===pt.id;
-      const isVis=!!VISITED[pt.id];
-      drawARLabel(ctx,proj.x,proj.y,proj.dist,pt,proj.alpha,isSel,isVis);
-    });
-  }
-
-  // === TARGET INDICATOR when selected point is off-screen ===
-  if(S.sel&&S.lat!=null&&S.hdg!=null){
-    const proj=projectPoint(S.sel.lat,S.sel.lon);
-    const d=hav(S.lat,S.lon,S.sel.lat,S.sel.lon);
-    const b=brg(S.lat,S.lon,S.sel.lat,S.sel.lon);
-
-    // Off-screen indicator arrow pointing toward target
-    if(!proj||!proj.inView){
-      const rel=relBrg(b,S.hdg);
-      const edgeX=Math.max(60,Math.min(W-60,W/2+(rel/(FOV_H/2))*(W/2)));
-      const clampedX=rel<0?50:W-50;
-      drawOffscreenArrow(ctx,clampedX,H*0.45,rel<0?'left':'right',d);
-    }
-
-    // Update DOM HUD
-    document.getElementById('ar-target-id').textContent=S.sel.id+' · '+S.sel.d;
-    const distEl=document.getElementById('ar-dist');
-    distEl.textContent=fmtD(d);
-    distEl.className='ar-dist '+dCls(d);
-    document.getElementById('ar-bearing').textContent=`${card(b)} · ${Math.round(b)}°`;
-    const eta=Math.round(d/67);
-    document.getElementById('ar-eta').textContent=eta>0?`~${eta} min walk`:'Almost there!';
-
-    // Rotate nav arrow
-    let arrowRot=relBrg(b,S.hdg);
-    document.getElementById('ar-arrow').style.transform=`rotate(${arrowRot}deg)`;
-
-    // Arrival pulse
-    if(d<5){
-      const t=Date.now()/1000;
-      ctx.save();
-      for(let i=0;i<3;i++){
-        const prog=(t*0.5+i/3)%1;
-        const r=50+prog*100;
-        const a=(1-prog)*0.5;
-        ctx.beginPath();ctx.arc(W/2,H/2,r,0,Math.PI*2);
-        ctx.strokeStyle=`rgba(16,185,129,${a})`;ctx.lineWidth=3;ctx.stroke();
-      }
-      ctx.restore();
-    }
-  }
-
-  // === TILT GUIDE — only show when phone is nearly flat ===
-  if(S.beta!==null&&S.beta<25){
-    ctx.save();
-    ctx.fillStyle='rgba(15,23,42,0.75)';
-    roundRect(ctx,W/2-120,H/2-22,240,44,12);ctx.fill();
-    ctx.fillStyle='rgba(255,255,255,0.8)';ctx.font='14px -apple-system';
-    ctx.textAlign='center';ctx.textBaseline='middle';
-    ctx.fillText('📱 Raise phone to see AR overlay',W/2,H/2);
-    ctx.restore();
+  if(mode==='compass'){
+    // Hide camera, show compass
+    document.getElementById('ar-video').style.opacity='0';
+    document.getElementById('ar-nav-card').style.display=S.sel?'flex':'none';
+    document.getElementById('ar-no-target').style.display=S.sel?'none':'block';
+    renderCompass(ctx,W,H);
+  } else if(mode==='ar'){
+    // Show camera + AR overlay
+    document.getElementById('ar-video').style.opacity='1';
+    document.getElementById('ar-nav-card').style.display=S.sel?'flex':'none';
+    document.getElementById('ar-no-target').style.display=S.sel?'none':'block';
+    renderARCamera(ctx,W,H,1);
+  } else {
+    // Transition: crossfade between modes
+    const t=Math.max(0,(beta-FLAT_THRESH)/(AR_THRESH-FLAT_THRESH));
+    document.getElementById('ar-video').style.opacity=String(t);
+    if(t<0.5)renderCompass(ctx,W,H);
+    renderARCamera(ctx,W,H,t);
   }
 }
 
-function drawOffscreenArrow(ctx,x,y,dir,dist){
+function drawEdgeArrow(ctx,W,H,side,dist,bearing,hdg){
+  const x=side==='left'?52:W-52;
+  const y=H*0.42;
+  const angle=side==='left'?-Math.PI/2:Math.PI/2;
   ctx.save();
-  ctx.fillStyle='rgba(129,140,248,0.9)';
-  ctx.strokeStyle='rgba(255,255,255,0.8)';ctx.lineWidth=2;
-  ctx.translate(x,y);
-  ctx.rotate(dir==='left'?-Math.PI/2:Math.PI/2);
+  ctx.translate(x,y);ctx.rotate(angle);
+  ctx.fillStyle='rgba(129,140,248,0.92)';
+  ctx.shadowColor='rgba(129,140,248,0.5)';ctx.shadowBlur=12;
   ctx.beginPath();
-  ctx.moveTo(0,-18);ctx.lineTo(14,10);ctx.lineTo(0,2);ctx.lineTo(-14,10);ctx.closePath();
-  ctx.fill();ctx.stroke();
-  ctx.restore();
-  ctx.fillStyle='rgba(255,255,255,0.8)';ctx.font='bold 12px -apple-system';
+  ctx.moveTo(0,-20);ctx.lineTo(15,12);ctx.lineTo(0,4);ctx.lineTo(-15,12);ctx.closePath();
+  ctx.fill();ctx.restore();
+  ctx.fillStyle='rgba(255,255,255,0.85)';ctx.font='bold 12px -apple-system';
   ctx.textAlign='center';ctx.textBaseline='top';
-  ctx.fillText(fmtD(dist),x,y+24);
+  ctx.fillText(fmtD(dist),x,y+26);
+  ctx.fillStyle='rgba(255,255,255,0.5)';ctx.font='11px -apple-system';
+  ctx.fillText(card(bearing),x,y+42);
 }
 
 function drawCompassTape(ctx,W){
