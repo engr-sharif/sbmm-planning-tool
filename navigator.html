@@ -45,13 +45,12 @@ body{
    VIEWS
 ================================================================ */
 .view{
-  position:fixed;top:0;left:0;right:0;
-  bottom:0;
+  position:fixed;top:0;left:0;right:0;bottom:0;
   padding-bottom:calc(var(--tab-h) + var(--ib));
-  display:none;overflow:hidden;
+  display:none;visibility:hidden;overflow:hidden;
+  background:var(--bg); /* Always opaque background */
+  z-index:10;
 }
-.view.active{display:block}
-#list-view.active{display:flex}
 
 /* ================================================================
    MAP VIEW
@@ -807,14 +806,13 @@ body{
 function setVH(){
   const vh=window.innerHeight;
   document.documentElement.style.setProperty('--app-h',vh+'px');
-  // Also fix position:fixed bottom — Safari needs explicit height
-  document.querySelectorAll('.view').forEach(v=>{
-    v.style.height=vh+'px';
-  });
+  // Update the currently visible view's height
+  const cur=document.querySelector('.view[style*="block"],.view[style*="flex"]');
+  if(cur)cur.style.height=vh+'px';
 }
 setVH();
 window.addEventListener('resize',setVH);
-window.addEventListener('orientationchange',()=>setTimeout(setVH,200));
+window.addEventListener('orientationchange',()=>setTimeout(setVH,300));
 
 // ================================================================
 // DATA
@@ -1552,47 +1550,45 @@ function renderList(){
 }
 
 // ================================================================
-// VIEW SWITCHING
+// VIEW SWITCHING — inline styles only, no CSS class reliance
 // ================================================================
 function setView(name){
   S.view=name;
-  // Handle settings separately
   if(name==='settings'){
     document.getElementById('settings-panel').classList.add('open');
     return;
   }
-  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
-  const el=document.getElementById(`${name}-view`);
-  if(el)el.classList.add('active');
 
-  // Tab indicator
-  const tabs=document.querySelectorAll('.tab-btn:not(#tab-settings)');
-  const names=['map','ar','list'];
-  const idx=names.indexOf(name);
-  const bar=document.getElementById('tab-bar');
-  const indicator=document.getElementById('tab-indicator');
-  tabs.forEach((t,i)=>t.classList.toggle('active',i===idx));
-  if(idx>=0){
-    const tab=tabs[idx];
-    const barRect=bar.getBoundingClientRect();
-    const tabRect=tab.getBoundingClientRect();
-    indicator.style.left=(tabRect.left-barRect.left)+'px';
-    indicator.style.width=tabRect.width+'px';
+  // Hide ALL views with explicit inline display:none
+  ['map','ar','list'].forEach(v=>{
+    const el=document.getElementById(v+'-view');
+    if(el){el.style.display='none';el.style.visibility='hidden';}
+  });
+
+  // Show ONLY the target view
+  const target=document.getElementById(name+'-view');
+  if(target){
+    const d=(name==='list')?'flex':'block';
+    target.style.display=d;
+    target.style.visibility='visible';
+    target.style.height=window.innerHeight+'px';
   }
 
-  // AR mode management
-  if(name==='ar'){
-    startAR();
-    map.invalidateSize();
-  }else{
-    stopAR();
-  }
+  // Update tab highlighting
+  document.querySelectorAll('.tab-btn').forEach(btn=>{
+    btn.classList.toggle('active', btn.dataset.view===name);
+  });
 
-  // Map resize — call twice: immediately + after transition
+  // AR management
+  if(name==='ar'){startAR();}
+  else{stopAR();}
+
+  // Leaflet must see its container visible before repainting
   if(name==='map'){
-    map.invalidateSize();
-    setTimeout(()=>map.invalidateSize(),100);
-    setTimeout(()=>map.invalidateSize(),400);
+    requestAnimationFrame(()=>{
+      map.invalidateSize(false);
+      setTimeout(()=>map.invalidateSize(false),300);
+    });
   }
 }
 
@@ -1856,18 +1852,24 @@ function init(){
   renderList();
   updateProgress();
 
-  // Show map view FIRST before anything Leaflet does
-  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
-  document.getElementById('map-view').classList.add('active');
+  // Show map view using explicit inline styles (Safari-safe)
+  ['map','ar','list'].forEach(v=>{
+    const el=document.getElementById(v+'-view');
+    if(el){el.style.display='none';el.style.visibility='hidden';}
+  });
+  const mapView=document.getElementById('map-view');
+  mapView.style.display='block';
+  mapView.style.visibility='visible';
+  mapView.style.height=window.innerHeight+'px';
   document.querySelectorAll('.tab-btn').forEach((b,i)=>b.classList.toggle('active',i===0));
 
-  // Now that map container is visible, force Leaflet to recalculate size
-  map.invalidateSize();
+  // Force Leaflet to see its container, then fit bounds
   setTimeout(()=>{
-    map.invalidateSize();
+    map.invalidateSize(false);
     const bounds=L.latLngBounds(R2.map(p=>[p.lat,p.lon]));
     map.fitBounds(bounds.pad(0.12));
-  },100);
+    setTimeout(()=>map.invalidateSize(false),300);
+  },50);
 
   // Keep AR canvas sized
   const canvas=document.getElementById('ar-canvas');
