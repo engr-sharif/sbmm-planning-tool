@@ -637,6 +637,34 @@ body{
   background:var(--primary);color:#fff;font-size:17px;font-weight:700;cursor:pointer;
   box-shadow:0 4px 20px rgba(59,130,246,0.35);letter-spacing:0.2px;
 }
+/* Munsell picker */
+.munsell-result-row{
+  display:flex;align-items:center;gap:12px;
+  background:var(--surface);border-radius:12px;padding:12px;border:1px solid var(--border);
+}
+.munsell-swatch{
+  width:52px;height:52px;border-radius:10px;flex-shrink:0;
+  border:2px solid rgba(255,255,255,0.15);
+}
+.munsell-notation{font-size:20px;font-weight:900;color:var(--text);letter-spacing:0.5px}
+.munsell-name{font-size:13px;color:var(--text3);margin-top:3px;line-height:1.3}
+.munsell-redo-btn{margin-left:auto;font-size:12px;color:var(--text3);text-decoration:underline;cursor:pointer;background:none;border:none;padding:4px;flex-shrink:0}
+/* Generated description */
+.desc-preview{
+  background:var(--surface);border-radius:12px;padding:14px;border:1px solid rgba(59,130,246,0.35);
+  font-size:14px;color:var(--text);line-height:1.6;font-style:italic;margin-bottom:10px;
+}
+/* Edit mode indicator */
+.boring-edit-badge{
+  font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;
+  background:rgba(234,179,8,0.15);color:#eab308;margin-top:4px;display:inline-block;
+}
+/* Unmark button in boring sheet */
+.bl-unmark-btn{
+  width:100%;padding:13px;border-radius:12px;border:1.5px solid rgba(239,68,68,0.4);
+  background:transparent;color:#ef4444;font-size:15px;font-weight:600;cursor:pointer;
+  margin-top:10px;
+}
 
 /* Compass indicator in list/map for selected target */
 .mini-compass{
@@ -941,7 +969,10 @@ body{
     <div>
       <div class="boring-pt-id" id="boring-pt-id">--</div>
       <div class="boring-ts" id="boring-ts">--</div>
-      <div class="boring-gps-badge" id="boring-gps-badge">GPS: --</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px">
+        <div class="boring-gps-badge" id="boring-gps-badge">GPS: --</div>
+        <div class="boring-edit-badge" id="boring-edit-badge" style="display:none">✏️ Editing existing log</div>
+      </div>
     </div>
     <div class="boring-close" id="boring-close">&times;</div>
   </div>
@@ -1014,20 +1045,48 @@ body{
       </div>
     </div>
 
-    <!-- 3. Soil Color -->
+    <!-- 3. Munsell Soil Color -->
     <div class="bl-section">
-      <div class="bl-label">Soil Color</div>
-      <div class="bl-chips" id="color-chips">
-        <button class="bl-chip color-chip" data-val="Brown" style="background:#7B5E3D;color:#fff;border-color:#7B5E3D">Brown</button>
-        <button class="bl-chip color-chip" data-val="Dark Brown" style="background:#4A3728;color:#fff;border-color:#4A3728">Dk Brown</button>
-        <button class="bl-chip color-chip" data-val="Gray" style="background:#888;color:#fff;border-color:#888">Gray</button>
-        <button class="bl-chip color-chip" data-val="Dark Gray" style="background:#444;color:#fff;border-color:#444">Dk Gray</button>
-        <button class="bl-chip color-chip" data-val="Black" style="background:#222;color:#fff;border-color:#222">Black</button>
-        <button class="bl-chip color-chip" data-val="Tan" style="background:#C9A96E;color:#333;border-color:#C9A96E">Tan</button>
-        <button class="bl-chip color-chip" data-val="Olive" style="background:#6B7A3A;color:#fff;border-color:#6B7A3A">Olive</button>
-        <button class="bl-chip color-chip" data-val="Red-Brown" style="background:#8B3A2F;color:#fff;border-color:#8B3A2F">Red-Brn</button>
-        <button class="bl-chip color-chip" data-val="Yellow-Brown" style="background:#A88B3D;color:#333;border-color:#A88B3D">Yel-Brn</button>
+      <div class="bl-label">Munsell Soil Color</div>
+      <div class="bl-sub-label">Step 1 — Hue</div>
+      <div class="bl-chips" id="munsell-hue-chips">
+        <button class="bl-chip" data-hue="10R">10R</button>
+        <button class="bl-chip" data-hue="2.5YR">2.5YR</button>
+        <button class="bl-chip" data-hue="5YR">5YR</button>
+        <button class="bl-chip" data-hue="7.5YR">7.5YR</button>
+        <button class="bl-chip" data-hue="10YR">10YR</button>
+        <button class="bl-chip" data-hue="2.5Y">2.5Y</button>
+        <button class="bl-chip" data-hue="5Y">5Y</button>
+        <button class="bl-chip" data-hue="5GY">5GY</button>
+        <button class="bl-chip" data-hue="N">N (Neutral)</button>
       </div>
+      <div id="munsell-value-row" style="display:none;margin-top:14px">
+        <div class="bl-sub-label">Step 2 — Value (Lightness 2=dark → 8=light)</div>
+        <div class="bl-chips" id="munsell-value-chips"></div>
+      </div>
+      <div id="munsell-chroma-row" style="display:none;margin-top:14px">
+        <div class="bl-sub-label">Step 3 — Chroma (Saturation 1=dull → 8=vivid)</div>
+        <div class="bl-chips" id="munsell-chroma-chips"></div>
+      </div>
+      <div id="munsell-result-wrap" style="display:none;margin-top:14px">
+        <div class="munsell-result-row">
+          <div class="munsell-swatch" id="munsell-swatch"></div>
+          <div style="flex:1">
+            <div class="munsell-notation" id="munsell-notation">--</div>
+            <div class="munsell-name" id="munsell-name">--</div>
+          </div>
+          <button class="munsell-redo-btn" id="munsell-redo">↺ Redo</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Auto-Generated Soil Description -->
+    <div class="bl-section">
+      <div class="bl-label">Boring Log Description</div>
+      <div class="bl-sub-label">Auto-generated from fields above — edit to refine</div>
+      <div class="desc-preview" id="desc-preview" style="display:none"></div>
+      <textarea class="bl-textarea" id="bl-soil-desc" placeholder="Complete USCS classification, color, and moisture to auto-generate the soil description…" style="min-height:70px"></textarea>
+      <button class="bl-chip" id="bl-regen-desc" style="margin-top:8px;font-size:13px">↺ Regenerate</button>
     </div>
 
     <!-- 4. Moisture -->
@@ -1102,9 +1161,10 @@ body{
       </div>
     </div>
 
-    <!-- Save -->
+    <!-- Save / Unmark -->
     <div class="bl-section">
       <button class="bl-save-btn" id="bl-save-btn">💾 Save &amp; Mark Done</button>
+      <button class="bl-unmark-btn" id="bl-unmark-btn" style="display:none">🗑 Unmark This Point</button>
     </div>
     <div style="height:48px"></div>
   </div>
@@ -1620,6 +1680,227 @@ let _fromArrival=false;
 const USCS_COARSE_DENSITY=['Very Loose','Loose','Medium Dense','Dense','Very Dense'];
 const USCS_FINE_DENSITY=['Very Soft','Soft','Firm','Stiff','Very Stiff','Hard'];
 
+// ----------------------------------------------------------------
+// MUNSELL DATA
+// ----------------------------------------------------------------
+const MUNSELL_HUES=['10R','2.5YR','5YR','7.5YR','10YR','2.5Y','5Y','5GY','N'];
+const MUNSELL_VALUES=[2,3,4,5,6,7,8];
+const MUNSELL_CHROMAS=[1,2,3,4,6,8];
+
+// Common soil Munsell color names (Hue Value/Chroma → name)
+const MUNSELL_NAMES={
+  // 10R
+  '10R 3/4':'Dusky Red','10R 4/4':'Weak Red','10R 4/6':'Red','10R 5/4':'Weak Red','10R 5/6':'Red',
+  // 2.5YR
+  '2.5YR 2.5/2':'Very Dark Reddish Brown','2.5YR 3/2':'Dark Reddish Brown','2.5YR 3/4':'Dark Reddish Brown',
+  '2.5YR 4/2':'Weak Red','2.5YR 4/4':'Reddish Brown','2.5YR 4/6':'Red','2.5YR 4/8':'Red',
+  '2.5YR 5/4':'Reddish Brown','2.5YR 5/6':'Red','2.5YR 6/4':'Light Reddish Brown',
+  // 5YR
+  '5YR 2.5/1':'Black','5YR 2.5/2':'Very Dark Reddish Brown','5YR 3/2':'Dark Reddish Brown',
+  '5YR 3/3':'Dark Reddish Brown','5YR 3/4':'Dark Reddish Brown','5YR 4/1':'Dark Reddish Gray',
+  '5YR 4/2':'Dark Reddish Gray','5YR 4/3':'Reddish Brown','5YR 4/4':'Reddish Brown',
+  '5YR 4/6':'Yellowish Red','5YR 5/2':'Reddish Gray','5YR 5/3':'Reddish Brown',
+  '5YR 5/4':'Reddish Brown','5YR 5/6':'Yellowish Red','5YR 5/8':'Yellowish Red',
+  '5YR 6/3':'Light Reddish Brown','5YR 6/4':'Light Reddish Brown','5YR 7/4':'Pink',
+  // 7.5YR
+  '7.5YR 2.5/1':'Black','7.5YR 2.5/2':'Very Dark Brown','7.5YR 3/2':'Dark Brown',
+  '7.5YR 3/4':'Dark Brown','7.5YR 4/1':'Dark Gray','7.5YR 4/2':'Brown',
+  '7.5YR 4/3':'Brown','7.5YR 4/4':'Brown','7.5YR 4/6':'Strong Brown',
+  '7.5YR 5/2':'Brown','7.5YR 5/3':'Brown','7.5YR 5/4':'Brown',
+  '7.5YR 5/6':'Strong Brown','7.5YR 5/8':'Strong Brown','7.5YR 6/2':'Pinkish Gray',
+  '7.5YR 6/4':'Light Brown','7.5YR 6/6':'Reddish Yellow','7.5YR 7/2':'Pinkish Gray',
+  '7.5YR 7/4':'Pink','7.5YR 8/2':'Pink',
+  // 10YR (most common)
+  '10YR 2/1':'Black','10YR 2/2':'Very Dark Brown','10YR 3/1':'Very Dark Gray',
+  '10YR 3/2':'Very Dark Grayish Brown','10YR 3/3':'Dark Brown','10YR 3/4':'Dark Yellowish Brown',
+  '10YR 4/1':'Dark Gray','10YR 4/2':'Dark Grayish Brown','10YR 4/3':'Brown',
+  '10YR 4/4':'Dark Yellowish Brown','10YR 5/1':'Gray','10YR 5/2':'Grayish Brown',
+  '10YR 5/3':'Brown','10YR 5/4':'Yellowish Brown','10YR 5/6':'Yellowish Brown',
+  '10YR 5/8':'Yellowish Brown','10YR 6/1':'Light Gray','10YR 6/2':'Light Brownish Gray',
+  '10YR 6/3':'Pale Brown','10YR 6/4':'Light Yellowish Brown','10YR 6/6':'Brownish Yellow',
+  '10YR 7/1':'Light Gray','10YR 7/2':'Light Gray','10YR 7/3':'Very Pale Brown',
+  '10YR 7/4':'Very Pale Brown','10YR 8/1':'White','10YR 8/2':'White',
+  // 2.5Y
+  '2.5Y 3/1':'Very Dark Gray','2.5Y 3/2':'Very Dark Grayish Brown','2.5Y 4/1':'Dark Gray',
+  '2.5Y 4/2':'Dark Grayish Brown','2.5Y 4/3':'Olive Brown','2.5Y 4/4':'Olive Brown',
+  '2.5Y 5/1':'Gray','2.5Y 5/2':'Grayish Brown','2.5Y 5/3':'Light Olive Brown',
+  '2.5Y 5/4':'Light Olive Brown','2.5Y 6/1':'Gray','2.5Y 6/2':'Light Brownish Gray',
+  '2.5Y 6/3':'Light Yellowish Brown','2.5Y 6/4':'Light Yellowish Brown',
+  '2.5Y 7/1':'Light Gray','2.5Y 7/2':'Light Gray','2.5Y 8/1':'White',
+  // 5Y
+  '5Y 3/1':'Very Dark Gray','5Y 3/2':'Dark Olive Gray','5Y 4/1':'Dark Gray',
+  '5Y 4/2':'Olive Gray','5Y 4/3':'Olive','5Y 4/4':'Olive','5Y 5/1':'Gray',
+  '5Y 5/2':'Olive Gray','5Y 5/3':'Olive','5Y 6/1':'Gray','5Y 6/2':'Pale Olive',
+  '5Y 6/3':'Pale Olive','5Y 7/1':'Light Gray','5Y 7/2':'Pale Yellow','5Y 8/1':'White',
+  // 5GY (gleyed soils)
+  '5GY 4/1':'Dark Grayish Olive','5GY 5/1':'Grayish Olive','5GY 6/1':'Olive Gray',
+  // Neutral
+  'N 2/':'Black','N 3/':'Very Dark Gray','N 4/':'Dark Gray',
+  'N 5/':'Gray','N 6/':'Gray','N 7/':'Light Gray','N 8/':'White',
+};
+
+// Approximate Munsell → CSS HSL for color swatches
+function munsellToHSL(hue,value,chroma){
+  if(hue==='N'||!chroma){const l=value*11;return`hsl(0,0%,${l}%)`}
+  const hueAngles={'10R':2,'2.5YR':14,'5YR':24,'7.5YR':34,'10YR':48,'2.5Y':62,'5Y':78,'5GY':148};
+  const h=hueAngles[hue]??48;
+  const l=Math.min(92,value*11);
+  const s=Math.min(85,chroma*9);
+  return`hsl(${h},${s}%,${l}%)`;
+}
+
+function getMunsellNotation(hue,value,chroma){
+  if(hue==='N')return`N ${value}/`;
+  return`${hue} ${value}/${chroma}`;
+}
+
+function getMunsellName(hue,value,chroma){
+  if(hue==='N')return MUNSELL_NAMES[`N ${value}/`]||'Neutral';
+  return MUNSELL_NAMES[`${hue} ${value}/${chroma}`]||`${hue} ${value}/${chroma}`;
+}
+
+// ----------------------------------------------------------------
+// GEOLOGICAL SOIL DESCRIPTION (ASTM D2488 convention)
+// ----------------------------------------------------------------
+const USCS_GROUP_NAMES={
+  GW:'Well-Graded GRAVEL',GP:'Poorly-Graded GRAVEL',GM:'Silty GRAVEL',GC:'Clayey GRAVEL',
+  SW:'Well-Graded SAND',SP:'Poorly-Graded SAND',SM:'Silty SAND',SC:'Clayey SAND',
+  ML:'lean SILT',CL:'lean CLAY',MH:'elastic SILT',CH:'fat CLAY',Pt:'PEAT',
+};
+
+function generateSoilDescription(log){
+  const parts=[];
+  if(log.density_consistency)parts.push(log.density_consistency);
+  // Color with Munsell notation
+  if(log.munsell_notation){
+    const name=log.munsell_name||getMunsellName(log.munsell_hue,log.munsell_value,log.munsell_chroma);
+    parts.push(`${name} (${log.munsell_notation})`);
+  }
+  // USCS group name + symbol
+  if(log.uscs){
+    const groupName=USCS_GROUP_NAMES[log.uscs]||log.uscs_desc||log.uscs;
+    parts.push(`${groupName} (${log.uscs})`);
+  }
+  if(log.moisture)parts.push(log.moisture.toLowerCase());
+  return parts.join(', ');
+}
+
+// ----------------------------------------------------------------
+// MUNSELL PICKER HELPERS
+// ----------------------------------------------------------------
+let _munsellHue=null,_munsellValue=null,_munsellChroma=null;
+
+function showMunsellValues(hue){
+  _munsellHue=hue;_munsellValue=null;_munsellChroma=null;
+  document.getElementById('munsell-chroma-row').style.display='none';
+  document.getElementById('munsell-result-wrap').style.display='none';
+  const valCont=document.getElementById('munsell-value-chips');
+  valCont.innerHTML=MUNSELL_VALUES.map(v=>
+    `<button class="bl-chip" data-val="${v}" style="background:${munsellToHSL(hue,v,hue==='N'?0:3)};color:${v<=4?'#fff':'#222'};border-color:transparent">${v}</button>`
+  ).join('');
+  valCont.querySelectorAll('.bl-chip').forEach(b=>b.addEventListener('click',()=>{
+    singleChip(valCont,b);
+    const val=parseInt(b.dataset.val);
+    _munsellValue=val;
+    if(hue==='N'){setMunsellResult(hue,val,null);}
+    else{showMunsellChromas(hue,val);}
+  }));
+  document.getElementById('munsell-value-row').style.display='block';
+}
+
+function showMunsellChromas(hue,value){
+  const chrCont=document.getElementById('munsell-chroma-chips');
+  chrCont.innerHTML=MUNSELL_CHROMAS.map(c=>
+    `<button class="bl-chip" data-val="${c}" style="background:${munsellToHSL(hue,value,c)};color:${value<=4?'#fff':'#222'};border-color:transparent">${c}</button>`
+  ).join('');
+  chrCont.querySelectorAll('.bl-chip').forEach(b=>b.addEventListener('click',()=>{
+    singleChip(chrCont,b);
+    _munsellChroma=parseInt(b.dataset.val);
+    setMunsellResult(hue,value,_munsellChroma);
+  }));
+  document.getElementById('munsell-chroma-row').style.display='block';
+}
+
+function setMunsellResult(hue,value,chroma){
+  _munsellHue=hue;_munsellValue=value;_munsellChroma=chroma;
+  const notation=getMunsellNotation(hue,value,chroma);
+  const name=getMunsellName(hue,value,chroma);
+  const color=munsellToHSL(hue,value,chroma||0);
+  document.getElementById('munsell-swatch').style.background=color;
+  document.getElementById('munsell-notation').textContent=notation;
+  document.getElementById('munsell-name').textContent=name;
+  document.getElementById('munsell-result-wrap').style.display='block';
+  setTimeout(refreshDescPreview,50);
+}
+
+function resetMunsellPicker(){
+  _munsellHue=null;_munsellValue=null;_munsellChroma=null;
+  const hueCont=document.getElementById('munsell-hue-chips');
+  hueCont.querySelectorAll('.bl-chip').forEach(b=>b.classList.remove('active'));
+  document.getElementById('munsell-value-row').style.display='none';
+  document.getElementById('munsell-chroma-row').style.display='none';
+  document.getElementById('munsell-result-wrap').style.display='none';
+}
+
+// ----------------------------------------------------------------
+// COLLECT FORM VALUES (reads current boring sheet state)
+// ----------------------------------------------------------------
+function collectFormValues(){
+  const depthActive=document.querySelector('#depth-chips .bl-chip.active');
+  let depth='';
+  if(depthActive){
+    depth=depthActive.id==='depth-custom-toggle'
+      ?document.getElementById('depth-custom-input').value.trim()
+      :depthActive.dataset.val;
+  }
+  const moistActive=document.querySelector('#moisture-chips .bl-chip.active');
+  const densityActive=document.querySelector('#density-chips .bl-chip.active');
+  const odorLvlActive=document.querySelector('#odor-level-chips .bl-chip.active');
+  const odorTypeActive=document.querySelector('#odor-type-chips .bl-chip.active');
+  const stainActive=document.querySelector('#stain-chips .bl-chip.active');
+  const statusActive=document.querySelector('#status-chips .bl-chip.active');
+  const munsellNotation=_munsellHue?getMunsellNotation(_munsellHue,_munsellValue,_munsellChroma):'';
+  const munsellName=_munsellHue?getMunsellName(_munsellHue,_munsellValue,_munsellChroma):'';
+  return{
+    depth,
+    uscs:_uscsResult?_uscsResult.sym:'',
+    uscs_desc:_uscsResult?_uscsResult.desc:'',
+    munsell_hue:_munsellHue||'',
+    munsell_value:_munsellValue!=null?_munsellValue:'',
+    munsell_chroma:_munsellChroma!=null?_munsellChroma:'',
+    munsell_notation:munsellNotation,
+    munsell_name:munsellName,
+    moisture:moistActive?moistActive.dataset.val:'',
+    density_consistency:densityActive?densityActive.dataset.val:'',
+    pid_ppm:_pidNA?'N/A':(document.getElementById('pid-input').value||''),
+    odor_level:odorLvlActive?odorLvlActive.dataset.val:'',
+    odor_type:odorTypeActive?odorTypeActive.dataset.val:'',
+    staining:stainActive?stainActive.dataset.val:'',
+    status:statusActive?statusActive.dataset.val:'Collected',
+    soil_description:document.getElementById('bl-soil-desc').value.trim(),
+    notes:document.getElementById('bl-notes').value.trim(),
+  };
+}
+
+// ----------------------------------------------------------------
+// AUTO-GENERATE DESCRIPTION PREVIEW
+// ----------------------------------------------------------------
+function refreshDescPreview(){
+  const vals=collectFormValues();
+  const desc=generateSoilDescription(vals);
+  const ta=document.getElementById('bl-soil-desc');
+  const preview=document.getElementById('desc-preview');
+  if(desc){
+    preview.textContent=desc;
+    preview.style.display='block';
+    // Only auto-fill if the text area is empty or matches a previous auto-gen
+    if(!ta.value||ta.dataset.autoGenerated===ta.value){
+      ta.value=desc;
+      ta.dataset.autoGenerated=desc;
+    }
+  }
+}
+
 function getUscsResult(st){
   const t=st.type,f=st.fines,g=st.grading,p=st.plasticity;
   if(t==='organic')return{sym:'Pt',desc:'Peat / Highly Organic',coarse:false};
@@ -1664,15 +1945,15 @@ function resetBoringForm(){
   _uscsState={type:null,fines:null,grading:null,plasticity:null};
   _uscsResult=null;_pidNA=false;_micActive=false;
   // Clear all chips
-  document.querySelectorAll('#boring-sheet .bl-chip').forEach(c=>{c.classList.remove('active');});
-  document.querySelectorAll('#boring-sheet .color-chip').forEach(c=>c.classList.remove('sel'));
-  document.getElementById('color-chips').dataset.selected='';
+  document.querySelectorAll('#boring-sheet .bl-chip').forEach(c=>c.classList.remove('active'));
   // Reset USCS wizard
   document.getElementById('uscs-result-area').style.display='none';
   document.getElementById('uscs-wizard-wrap').style.display='block';
   ['uscs-step-2a','uscs-step-2b','uscs-step-3'].forEach(id=>document.getElementById(id).style.display='none');
   document.getElementById('uscs-step-1').style.display='block';
   updateDensityChips(null);
+  // Reset Munsell picker
+  resetMunsellPicker();
   // Reset inputs
   document.getElementById('pid-input').value='';
   document.getElementById('pid-input').disabled=false;
@@ -1682,32 +1963,137 @@ function resetBoringForm(){
   document.getElementById('depth-custom-input').style.display='none';
   document.getElementById('depth-custom-input').value='';
   document.getElementById('bl-notes').value='';
+  document.getElementById('bl-soil-desc').value='';
+  document.getElementById('bl-soil-desc').dataset.autoGenerated='';
+  document.getElementById('desc-preview').style.display='none';
   if(_micActive&&_speechRec){try{_speechRec.stop();}catch(e){}_micActive=false;}
   document.getElementById('bl-mic-btn').classList.remove('recording');
   document.getElementById('bl-mic-btn').textContent='🎙️';
 }
 
-function openBoringLog(pt){
+function openBoringLog(pt,existingLog=null){
   _boringPt=pt;
+  const isEdit=!!existingLog;
   resetBoringForm();
   document.getElementById('boring-pt-id').textContent=pt.id;
-  const now=new Date();
+  // Timestamp: show original if editing, otherwise now
+  const ts=existingLog?new Date(existingLog.timestamp):new Date();
   document.getElementById('boring-ts').textContent=
-    now.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})+
-    ' · '+now.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
+    ts.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})+
+    ' · '+ts.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
+  // Edit badge
+  document.getElementById('boring-edit-badge').style.display=isEdit?'inline-block':'none';
   // GPS badge
   const badge=document.getElementById('boring-gps-badge');
-  if(S.acc!=null){
-    const ft=S.acc*3.28084;
-    badge.textContent=`GPS ±${ft.toFixed(1)} ft`;
-    badge.style.background=ft<=GPS_LOCK_FT?'rgba(34,197,94,0.15)':ft<=10?'rgba(234,179,8,0.15)':'rgba(239,68,68,0.15)';
-    badge.style.color=ft<=GPS_LOCK_FT?'#22c55e':ft<=10?'#eab308':'#ef4444';
+  const accSrc=existingLog&&existingLog.accuracy_ft!=null?existingLog.accuracy_ft:(S.acc!=null?S.acc*3.28084:null);
+  if(accSrc!=null){
+    badge.textContent=`GPS ±${accSrc.toFixed(1)} ft`;
+    badge.style.background=accSrc<=GPS_LOCK_FT?'rgba(34,197,94,0.15)':accSrc<=10?'rgba(234,179,8,0.15)':'rgba(239,68,68,0.15)';
+    badge.style.color=accSrc<=GPS_LOCK_FT?'#22c55e':accSrc<=10?'#eab308':'#ef4444';
   }else{badge.textContent='GPS unknown';badge.style.background='';badge.style.color='var(--text3)'}
-  // Pre-fill status = Collected
-  const statusDefault=document.querySelector('#status-chips [data-val="Collected"]');
-  if(statusDefault)statusDefault.classList.add('active');
+  // Save / unmark button labels
+  document.getElementById('bl-save-btn').textContent=isEdit?'💾 Update Log':'💾 Save & Mark Done';
+  document.getElementById('bl-unmark-btn').style.display=isEdit?'block':'none';
+  if(!isEdit){
+    // Default status = Collected
+    const d=document.querySelector('#status-chips [data-val="Collected"]');
+    if(d)d.classList.add('active');
+  }else{
+    prefillBoringForm(existingLog);
+  }
   document.getElementById('boring-sheet').classList.add('open');
   document.getElementById('boring-body').scrollTop=0;
+}
+
+function prefillBoringForm(log){
+  // Depth
+  if(log.depth){
+    const depthCont=document.getElementById('depth-chips');
+    const match=depthCont.querySelector(`.bl-chip[data-val="${log.depth}"]`);
+    if(match){singleChip(depthCont,match);}
+    else{
+      singleChip(depthCont,document.getElementById('depth-custom-toggle'));
+      const inp=document.getElementById('depth-custom-input');
+      inp.style.display='block';inp.value=log.depth;
+    }
+  }
+  // USCS — if saved, show result directly without re-running wizard
+  if(log.uscs){
+    _uscsResult={sym:log.uscs,desc:log.uscs_desc||log.uscs,coarse:['GW','GP','GM','GC','SW','SP','SM','SC'].includes(log.uscs)};
+    document.getElementById('uscs-result-area').style.display='block';
+    document.getElementById('uscs-wizard-wrap').style.display='none';
+    document.getElementById('uscs-symbol-big').textContent=_uscsResult.sym;
+    document.getElementById('uscs-desc-text').textContent=_uscsResult.desc;
+    updateDensityChips(_uscsResult.coarse);
+  }
+  // Munsell color
+  if(log.munsell_hue){
+    // Set hue
+    const hueCont=document.getElementById('munsell-hue-chips');
+    const hueBtn=hueCont.querySelector(`[data-hue="${log.munsell_hue}"]`);
+    if(hueBtn){
+      singleChip(hueCont,hueBtn);
+      showMunsellValues(log.munsell_hue);
+      if(log.munsell_value!=null){
+        const valCont=document.getElementById('munsell-value-chips');
+        const valBtn=valCont.querySelector(`[data-val="${log.munsell_value}"]`);
+        if(valBtn){
+          singleChip(valCont,valBtn);
+          if(log.munsell_hue!=='N'){
+            showMunsellChromas(log.munsell_hue,log.munsell_value);
+            if(log.munsell_chroma!=null){
+              const chrCont=document.getElementById('munsell-chroma-chips');
+              const chrBtn=chrCont.querySelector(`[data-val="${log.munsell_chroma}"]`);
+              if(chrBtn){singleChip(chrCont,chrBtn);setMunsellResult(log.munsell_hue,log.munsell_value,log.munsell_chroma);}
+            }
+          }else{setMunsellResult(log.munsell_hue,log.munsell_value,null);}
+        }
+      }
+    }
+  }
+  // Moisture
+  if(log.moisture){
+    const mc=document.getElementById('moisture-chips');
+    const mb=mc.querySelector(`[data-val="${log.moisture}"]`);
+    if(mb)singleChip(mc,mb);
+  }
+  // Density/Consistency
+  if(log.density_consistency){
+    const dc=document.getElementById('density-chips');
+    const db=dc.querySelector(`[data-val="${log.density_consistency}"]`);
+    if(db)singleChip(dc,db);
+  }
+  // PID
+  if(log.pid_ppm==='N/A'){document.getElementById('pid-na-btn').click();}
+  else if(log.pid_ppm)document.getElementById('pid-input').value=log.pid_ppm;
+  // Odor
+  if(log.odor_level){
+    const olc=document.getElementById('odor-level-chips');
+    const olb=olc.querySelector(`[data-val="${log.odor_level}"]`);
+    if(olb){singleChip(olc,olb);if(log.odor_level!=='None')document.getElementById('odor-type-chips').style.display='flex';}
+  }
+  if(log.odor_type){
+    const otc=document.getElementById('odor-type-chips');
+    const otb=otc.querySelector(`[data-val="${log.odor_type}"]`);
+    if(otb)singleChip(otc,otb);
+  }
+  // Staining
+  if(log.staining){
+    const sc=document.getElementById('stain-chips');
+    const sb=sc.querySelector(`[data-val="${log.staining}"]`);
+    if(sb)singleChip(sc,sb);
+  }
+  // Status
+  if(log.status){
+    const stc=document.getElementById('status-chips');
+    const stb=stc.querySelector(`[data-val="${log.status}"]`);
+    if(stb)singleChip(stc,stb);
+  }
+  // Soil description + notes
+  if(log.soil_description)document.getElementById('bl-soil-desc').value=log.soil_description;
+  if(log.notes)document.getElementById('bl-notes').value=log.notes;
+  // Refresh the description preview
+  refreshDescPreview();
 }
 
 function closeBoringLog(){
@@ -1717,18 +2103,13 @@ function closeBoringLog(){
 
 function checkGPSAndOpenLog(pt,fromArrival=false){
   if(!pt)return;
-  // If already marked: offer to unmark
+  _fromArrival=fromArrival;
+  // If already marked: open for editing (no GPS check needed)
   if(VISITED[pt.id]){
-    if(confirm(`Unmark ${pt.id} as complete and clear its log?`)){
-      delete VISITED[pt.id];
-      delete BORING_LOGS[pt.id];
-      VISIT_LOG=VISIT_LOG.filter(v=>v.id!==pt.id);
-      localStorage.setItem(BORING_KEY,JSON.stringify(BORING_LOGS));
-      saveVis();drawMapMarkers();renderList();updateProgress();updateCard();
-    }
+    openBoringLog(pt,BORING_LOGS[pt.id]||{id:pt.id});
     return;
   }
-  _fromArrival=fromArrival;
+  // New log: enforce GPS accuracy
   const accFt=S.acc!=null?S.acc*3.28084:null;
   if(accFt==null||accFt>GPS_LOCK_FT){
     document.getElementById('gps-modal-acc').textContent=accFt!=null?`±${accFt.toFixed(1)} ft`:'unknown';
@@ -1795,13 +2176,26 @@ function initBoringLogEvents(){
     updateDensityChips(null);
   });
 
-  // Color chips (custom selection to preserve inline bg color)
-  const colorCont=document.getElementById('color-chips');
-  colorCont.querySelectorAll('.color-chip').forEach(b=>b.addEventListener('click',()=>{
-    colorCont.querySelectorAll('.color-chip').forEach(x=>x.classList.remove('sel'));
-    b.classList.add('sel');
-    colorCont.dataset.selected=b.dataset.val;
+  // ---- Munsell picker ----
+  const hueCont=document.getElementById('munsell-hue-chips');
+  hueCont.querySelectorAll('.bl-chip').forEach(b=>b.addEventListener('click',()=>{
+    singleChip(hueCont,b);
+    const hue=b.dataset.hue;
+    showMunsellValues(hue);
   }));
+  document.getElementById('munsell-redo').addEventListener('click',resetMunsellPicker);
+
+  // ---- Generated description ----
+  ['uscs-step-1','uscs-step-2a','uscs-step-2b','uscs-step-3'].forEach(id=>{
+    document.getElementById(id).querySelectorAll('.uscs-opt').forEach(b=>b.addEventListener('click',()=>setTimeout(refreshDescPreview,50)));
+  });
+  document.getElementById('munsell-redo').addEventListener('click',()=>setTimeout(refreshDescPreview,50));
+  document.getElementById('moisture-chips').querySelectorAll('.bl-chip').forEach(b=>b.addEventListener('click',()=>setTimeout(refreshDescPreview,50)));
+  document.getElementById('density-chips').addEventListener('click',()=>setTimeout(refreshDescPreview,80));
+  document.getElementById('bl-regen-desc').addEventListener('click',()=>{
+    const desc=generateSoilDescription(collectFormValues());
+    if(desc)document.getElementById('bl-soil-desc').value=desc;
+  });
 
   // Moisture chips
   const moistCont=document.getElementById('moisture-chips');
@@ -1853,46 +2247,39 @@ function initBoringLogEvents(){
     micBtn.style.opacity='0.3';micBtn.title='Speech recognition not available on this device';
   }
 
-  // Save & Mark Done
+  // Unmark point
+  document.getElementById('bl-unmark-btn').addEventListener('click',()=>{
+    if(!_boringPt)return;
+    if(confirm(`Unmark ${_boringPt.id}? This will remove the completed status but keep the log data.`)){
+      const pt=_boringPt;
+      delete VISITED[pt.id];
+      VISIT_LOG=VISIT_LOG.filter(v=>v.id!==pt.id);
+      saveVis();drawMapMarkers();renderList();updateProgress();updateCard();
+      closeBoringLog();
+    }
+  });
+
+  // Save / Update
   document.getElementById('bl-save-btn').addEventListener('click',()=>{
     if(!_boringPt)return;
-    // Read all form values
-    const depthActive=document.querySelector('#depth-chips .bl-chip.active');
-    let depth='';
-    if(depthActive){
-      depth=depthActive.id==='depth-custom-toggle'
-        ?document.getElementById('depth-custom-input').value.trim()
-        :depthActive.dataset.val;
-    }
-    const color=document.getElementById('color-chips').dataset.selected||'';
-    const moistActive=document.querySelector('#moisture-chips .bl-chip.active');
-    const densityActive=document.querySelector('#density-chips .bl-chip.active');
-    const odorLvlActive=document.querySelector('#odor-level-chips .bl-chip.active');
-    const odorTypeActive=document.querySelector('#odor-type-chips .bl-chip.active');
-    const stainActive=document.querySelector('#stain-chips .bl-chip.active');
-    const statusActive=document.querySelector('#status-chips .bl-chip.active');
+    const vals=collectFormValues();
+    const isEdit=!!VISITED[_boringPt.id];
+    const existingLog=BORING_LOGS[_boringPt.id]||{};
     const log={
       id:_boringPt.id,
-      timestamp:new Date().toISOString(),
-      lat:S.lat,lon:S.lon,
-      accuracy_ft:S.acc!=null?+(S.acc*3.28084).toFixed(2):null,
-      depth:depth,
-      uscs:_uscsResult?_uscsResult.sym:'',
-      uscs_desc:_uscsResult?_uscsResult.desc:'',
-      color:color,
-      moisture:moistActive?moistActive.dataset.val:'',
-      density_consistency:densityActive?densityActive.dataset.val:'',
-      pid_ppm:_pidNA?'N/A':(document.getElementById('pid-input').value||''),
-      odor_level:odorLvlActive?odorLvlActive.dataset.val:'',
-      odor_type:odorTypeActive?odorTypeActive.dataset.val:'',
-      staining:stainActive?stainActive.dataset.val:'',
-      status:statusActive?statusActive.dataset.val:'Collected',
-      notes:document.getElementById('bl-notes').value.trim(),
+      timestamp:isEdit?(existingLog.timestamp||new Date().toISOString()):new Date().toISOString(),
+      updated:new Date().toISOString(),
+      lat:isEdit?(existingLog.lat||S.lat):S.lat,
+      lon:isEdit?(existingLog.lon||S.lon):S.lon,
+      accuracy_ft:isEdit?(existingLog.accuracy_ft||null):(S.acc!=null?+(S.acc*3.28084).toFixed(2):null),
+      ...vals,
     };
     BORING_LOGS[_boringPt.id]=log;
     localStorage.setItem(BORING_KEY,JSON.stringify(BORING_LOGS));
     const savedPt=_boringPt;
-    markVisited(savedPt);
+    const wasEdit=!!VISITED[_boringPt.id];
+    if(!wasEdit)markVisited(savedPt);
+    else{drawMapMarkers();renderList();updateProgress();updateCard();}
     closeBoringLog();
     // If opened from arrival popup: auto-navigate to next nearest unvisited point
     if(_fromArrival){
@@ -2460,11 +2847,13 @@ function renderPhotoGrid(pt){
 
 function capturePhoto(pt){
   const input=document.getElementById('photo-capture');
+  const hdgAtCapture=S.hdg; // capture compass heading at the moment of trigger
   input.onchange=async(e)=>{
     const file=e.target.files[0];if(!file)return;
-    const compressed=await compressImage(file,800,0.82);
-    const localUrl=URL.createObjectURL(compressed);
-    const meta={id:pt.id,time:new Date().toISOString(),lat:S.lat,lon:S.lon,localUrl,uploaded:false};
+    const compressed=await compressImage(file,1200,0.88);
+    const overlaid=await overlayPhotoMetadata(compressed,pt,hdgAtCapture);
+    const localUrl=URL.createObjectURL(overlaid);
+    const meta={id:pt.id,time:new Date().toISOString(),lat:S.lat,lon:S.lon,hdg:hdgAtCapture,localUrl,uploaded:false};
     if(!PHOTOS[pt.id])PHOTOS[pt.id]=[];
     PHOTOS[pt.id].push(meta);
     savePhotos();
@@ -2472,10 +2861,63 @@ function capturePhoto(pt){
     drawMapMarkers();updateCard();
     // Try GitHub upload
     const ghToken=localStorage.getItem(GH_KEY);
-    if(ghToken){uploadToGitHub(compressed,pt,meta,ghToken)}
+    if(ghToken){uploadToGitHub(overlaid,pt,meta,ghToken)}
     input.value='';
   };
   input.click();
+}
+
+async function overlayPhotoMetadata(blob,pt,hdg){
+  return new Promise(res=>{
+    const img=new Image();
+    const url=URL.createObjectURL(blob);
+    img.onload=()=>{
+      URL.revokeObjectURL(url);
+      const W=img.width,H=img.height;
+      const c=document.createElement('canvas');
+      c.width=W;c.height=H;
+      const ctx=c.getContext('2d');
+      ctx.drawImage(img,0,0);
+      // Bottom metadata bar
+      const barH=Math.max(80,Math.round(H*0.11));
+      // Semi-transparent gradient overlay
+      const grad=ctx.createLinearGradient(0,H-barH,0,H);
+      grad.addColorStop(0,'rgba(0,0,0,0)');
+      grad.addColorStop(0.3,'rgba(0,0,0,0.82)');
+      grad.addColorStop(1,'rgba(0,0,0,0.9)');
+      ctx.fillStyle=grad;
+      ctx.fillRect(0,H-barH,W,barH);
+      const pad=Math.round(W*0.025);
+      // Sample ID — large
+      const idSize=Math.round(barH*0.40);
+      ctx.font=`900 ${idSize}px system-ui,-apple-system,sans-serif`;
+      ctx.fillStyle='#ffffff';
+      ctx.shadowColor='rgba(0,0,0,0.8)';ctx.shadowBlur=6;
+      ctx.fillText(pt.id,pad,H-barH+idSize*1.05);
+      // GPS + timestamp + heading — smaller
+      const subSize=Math.round(barH*0.22);
+      ctx.font=`${subSize}px system-ui,-apple-system,sans-serif`;
+      ctx.fillStyle='rgba(255,255,255,0.88)';
+      const gpsText=S.lat!=null?`${S.lat.toFixed(6)}, ${S.lon.toFixed(6)}`:'No GPS';
+      const now=new Date();
+      const dateStr=now.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+      const timeStr=now.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+      const hdgStr=hdg!=null?`  •  ${Math.round(hdg)}° ${card(hdg)} (facing)`:'';
+      const line2=`${gpsText}  •  ${dateStr} ${timeStr}${hdgStr}`;
+      ctx.fillText(line2,pad,H-barH+idSize*1.05+subSize*1.5);
+      // Accuracy
+      if(S.acc!=null){
+        const accFt=(S.acc*3.28084).toFixed(1);
+        const accSize=Math.round(barH*0.19);
+        ctx.font=`${accSize}px system-ui,-apple-system,sans-serif`;
+        ctx.fillStyle='rgba(255,255,255,0.6)';
+        ctx.fillText(`GPS ±${accFt} ft`,pad,H-barH+idSize*1.05+subSize*1.5+accSize*1.5);
+      }
+      ctx.shadowBlur=0;
+      c.toBlob(res,'image/jpeg',0.88);
+    };
+    img.src=url;
+  });
 }
 
 async function compressImage(file,maxPx,quality){
@@ -2554,10 +2996,11 @@ function initSettings(){
   if(PREFS.unit==='m'){document.getElementById('u-m').classList.add('on');document.getElementById('u-ft').classList.remove('on')}
 
   document.getElementById('export-btn').addEventListener('click',()=>{
-    const headers=['Point_ID','Timestamp','Lat','Lon','Accuracy_ft','Depth','USCS','USCS_Description','Color','Moisture','Density_Consistency','PID_ppm','Odor_Level','Odor_Type','Staining','Status','Notes'];
+    const headers=['Point_ID','Timestamp','Lat','Lon','Accuracy_ft','Depth','USCS','USCS_Description','Munsell_Notation','Munsell_Name','Moisture','Density_Consistency','PID_ppm','Odor_Level','Odor_Type','Staining','Status','Soil_Description','Notes'];
     let csv=headers.join(',')+'\n';
     VISIT_LOG.forEach(v=>{
       const b=BORING_LOGS[v.id]||{};
+      const esc=s=>`"${(s||'').replace(/"/g,'""')}"`;
       const row=[
         v.id,
         b.timestamp||v.time,
@@ -2567,7 +3010,8 @@ function initSettings(){
         b.depth||'',
         b.uscs||'',
         b.uscs_desc||'',
-        b.color||'',
+        b.munsell_notation||'',
+        b.munsell_name||'',
         b.moisture||'',
         b.density_consistency||'',
         b.pid_ppm||'',
@@ -2575,7 +3019,8 @@ function initSettings(){
         b.odor_type||'',
         b.staining||'',
         b.status||'Collected',
-        `"${(b.notes||'').replace(/"/g,'""')}"`,
+        esc(b.soil_description),
+        esc(b.notes),
       ];
       csv+=row.join(',')+'\n';
     });
