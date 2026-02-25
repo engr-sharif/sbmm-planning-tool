@@ -2826,7 +2826,24 @@ function renderARCamera(ctx,W,H,tiltFade){
   // Compass tape
   drawCompassTape(ctx,W);
 
-  if(S.lat==null||S.hdg==null)return;
+  // ── GPS / compass status overlay ───────────────────────────────
+  if(S.lat==null||S.hdg==null){
+    const msg=S.lat==null?'📍 Acquiring GPS…':'🧭 Calibrating compass…';
+    const sub=S.lat==null?'GPS location needed to show AR markers':'Wave device in a figure-8 to calibrate';
+    ctx.save();
+    ctx.globalAlpha=0.85*tiltFade;
+    ctx.fillStyle='rgba(15,23,42,0.75)';
+    roundRect(ctx,W/2-145,H*0.42-34,290,72,14);ctx.fill();
+    ctx.strokeStyle='rgba(59,130,246,0.5)';ctx.lineWidth=1.5;
+    roundRect(ctx,W/2-145,H*0.42-34,290,72,14);ctx.stroke();
+    ctx.fillStyle='#f1f5f9';ctx.font='bold 15px -apple-system';
+    ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(msg,W/2,H*0.42-10);
+    ctx.fillStyle='#94a3b8';ctx.font='12px -apple-system';
+    ctx.fillText(sub,W/2,H*0.42+16);
+    ctx.restore();
+    return;
+  }
 
   // Horizon line — subtle, doesn't move (camera is aimed at horizon in AR mode)
   ctx.save();
@@ -2870,6 +2887,26 @@ function renderARCamera(ctx,W,H,tiltFade){
     drawARLabel(ctx,p.x,p.y,p.dist,p.pt,p.alpha,
       S.sel&&S.sel.id===p.pt.id,!!VISITED[p.pt.id]);
   });
+
+  // ── No points in FOV — show cluster direction arrow + hint ────
+  if(projPts.length===0){
+    // Average bearing across all R2 points
+    let sx=0,sy=0;
+    R2.forEach(pt=>{const b=brg(S.lat,S.lon,pt.lat,pt.lon)*Math.PI/180;sx+=Math.cos(b);sy+=Math.sin(b);});
+    const avgBrg=(Math.atan2(sy,sx)*180/Math.PI+360)%360;
+    const avgRel=relBrg(avgBrg,hdg);
+    const closestDist=Math.min(...R2.map(pt=>hav(S.lat,S.lon,pt.lat,pt.lon)));
+    drawEdgeArrow(ctx,W,H,avgRel<0?'left':'right',closestDist,avgBrg,hdg);
+    // Hint text
+    ctx.save();
+    ctx.globalAlpha=0.65*tiltFade;
+    ctx.fillStyle='rgba(255,255,255,0.75)';
+    ctx.font='bold 13px -apple-system';
+    ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.shadowColor='rgba(0,0,0,0.6)';ctx.shadowBlur=6;
+    ctx.fillText('Rotate to face sampling site',W/2,H*0.52);
+    ctx.restore();
+  }
 
   // Off-screen indicator for selected target
   if(S.sel){
