@@ -2956,7 +2956,7 @@ function drawCompassTape(ctx,W){
   ctx.beginPath();ctx.moveTo(0,H_tape);ctx.lineTo(W,H_tape);ctx.stroke();
 
   // ── Clip region for ticks ─────────────────────────────────────
-  ctx.save();ctx.clip(new Path2D(`M 0 0 L ${W} 0 L ${W} ${H_tape} L 0 ${H_tape} Z`));
+  ctx.save();ctx.beginPath();ctx.rect(0,0,W,H_tape);ctx.clip();
 
   for(let off=-60;off<=150;off+=2){
     const deg=((Math.round(hdg)+off)%360+360)%360;
