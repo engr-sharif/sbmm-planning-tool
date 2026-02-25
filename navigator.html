@@ -7,6 +7,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#0f172a">
+<link rel="manifest" href="manifest.json">
 <title>SBMM Navigator</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <style>
@@ -24,6 +25,46 @@
   --il:env(safe-area-inset-left,0px);
   --ir:env(safe-area-inset-right,0px);
   --tab-h:56px;
+  /* Spring timing functions — Apple-level physics */
+  --spring-snappy: linear(
+    0, 0.011, 0.044, 0.098, 0.169, 0.253, 0.345, 0.441, 0.535, 0.625,
+    0.706, 0.776, 0.835, 0.882, 0.919, 0.946, 0.966, 0.979, 0.988, 0.994,
+    0.998, 1.0, 1.001, 1.001, 1
+  );
+  --spring-bouncy: linear(
+    0, 0.004, 0.016, 0.035, 0.063, 0.098, 0.141, 0.19, 0.246, 0.307,
+    0.374, 0.444, 0.514, 0.584, 0.65, 0.711, 0.765, 0.811, 0.849, 0.879,
+    0.903, 0.922, 0.938, 0.951, 0.964, 0.977, 0.991, 1.007, 1.02, 1.029,
+    1.033, 1.033, 1.029, 1.024, 1.017, 1.011, 1.006, 1.003, 1.001, 1
+  );
+  --spring-gentle: linear(
+    0, 0.002, 0.009, 0.02, 0.036, 0.056, 0.08, 0.109, 0.141, 0.177,
+    0.217, 0.259, 0.305, 0.353, 0.402, 0.453, 0.505, 0.556, 0.607, 0.656,
+    0.703, 0.747, 0.788, 0.826, 0.86, 0.89, 0.917, 0.939, 0.957, 0.971,
+    0.982, 0.99, 0.995, 0.998, 1
+  );
+}
+/* Light Mode */
+@media (prefers-color-scheme:light){
+  :root:not([data-theme="dark"]){
+    --bg:#f8fafc;--surface:#ffffff;--surface2:#f1f5f9;--surface3:#e2e8f0;
+    --text:#0f172a;--text2:#475569;--text3:#94a3b8;--border:#e2e8f0;
+  }
+}
+:root[data-theme="light"]{
+  --bg:#f8fafc;--surface:#ffffff;--surface2:#f1f5f9;--surface3:#e2e8f0;
+  --text:#0f172a;--text2:#475569;--text3:#94a3b8;--border:#e2e8f0;
+}
+:root[data-theme="dark"]{
+  --bg:#0f172a;--surface:#1e293b;--surface2:#334155;--surface3:#475569;
+  --text:#f1f5f9;--text2:#94a3b8;--text3:#64748b;--border:#334155;
+}
+/* Reduced motion */
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{
+    animation-duration:0.01ms!important;animation-iteration-count:1!important;
+    transition-duration:0.01ms!important;
+  }
 }
 html{
   height:-webkit-fill-available;
@@ -127,9 +168,9 @@ body{
   border:1px solid rgba(71,85,105,0.5);
   color:var(--text);display:flex;align-items:center;justify-content:center;
   box-shadow:0 4px 16px rgba(0,0,0,0.4);cursor:pointer;
-  transition:transform .12s,background .15s;
+  transition:transform .4s var(--spring-snappy),background .15s;
 }
-.fab:active{transform:scale(0.9)}
+.fab:active{transform:scale(0.88)}
 .fab.active{background:var(--primary);border-color:var(--primary)}
 #fab-locate{bottom:calc(var(--tab-h) + var(--ib) + 16px)}
 #fab-layers{bottom:calc(var(--tab-h) + var(--ib) + 70px)}
@@ -142,7 +183,7 @@ body{
   border-radius:16px;border:1px solid var(--border);
   padding:16px 20px;min-width:210px;
   box-shadow:0 12px 40px rgba(0,0,0,0.6);transform:translateX(60px);
-  transition:transform .2s,opacity .2s;opacity:0;pointer-events:none;
+  transition:transform .4s var(--spring-snappy),opacity .3s;opacity:0;pointer-events:none;
   visibility:hidden;
 }
 .layer-panel.open{visibility:visible;transform:translateX(0);opacity:1;pointer-events:auto}
@@ -171,7 +212,7 @@ body{
   border-radius:20px;border:1px solid var(--border);
   padding:18px 20px;
   box-shadow:0 -4px 40px rgba(0,0,0,0.5);
-  transform:translateY(150%);transition:transform .35s cubic-bezier(0.4,0,0.2,1);
+  transform:translateY(150%);transition:transform .5s var(--spring-bouncy);
   visibility:hidden;pointer-events:none;
 }
 .pt-card.show{visibility:visible;pointer-events:auto;transform:translateY(0)}
@@ -193,9 +234,9 @@ body{
   flex:1;padding:12px;border-radius:13px;border:none;
   font-size:14px;font-weight:600;cursor:pointer;
   display:flex;align-items:center;justify-content:center;gap:6px;
-  transition:transform .1s,opacity .15s;
+  transition:transform .4s var(--spring-snappy),opacity .15s;
 }
-.pt-act-btn:active{transform:scale(0.96);opacity:0.8}
+.pt-act-btn:active{transform:scale(0.95);opacity:0.85}
 .pt-act-btn.primary{background:var(--primary);color:#fff}
 .pt-act-btn.success{background:var(--success);color:#fff}
 .pt-act-btn.neutral{background:var(--surface2);color:var(--text)}
@@ -302,8 +343,8 @@ body{
   text-align:center;padding:40px;
   animation:none;
 }
-.arrival-flash.show{display:flex;animation:flash-in .3s ease}
-@keyframes flash-in{from{opacity:0;transform:scale(0.95)}to{opacity:1;transform:scale(1)}}
+.arrival-flash.show{display:flex;animation:flash-in .6s var(--spring-bouncy)}
+@keyframes flash-in{from{opacity:0;transform:scale(0.92)}to{opacity:1;transform:scale(1)}}
 .arrival-icon{
   width:88px;height:88px;border-radius:50%;
   border:3px solid rgba(255,255,255,0.8);
@@ -344,8 +385,9 @@ body{
 .fchip{
   padding:7px 16px;border-radius:20px;border:1px solid var(--border);
   background:transparent;color:var(--text2);font-size:13px;font-weight:500;
-  white-space:nowrap;cursor:pointer;flex-shrink:0;transition:all .15s;min-height:36px;
+  white-space:nowrap;cursor:pointer;flex-shrink:0;transition:all .35s var(--spring-snappy);min-height:36px;
 }
+.fchip:active{transform:scale(0.95)}
 .fchip.on{background:var(--primary);border-color:var(--primary);color:#fff}
 
 .list-scroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;min-height:0}
@@ -393,12 +435,12 @@ body{
   -webkit-tap-highlight-color:transparent;
 }
 .tab-btn.active{color:var(--primary)}
-.tab-btn svg{width:23px;height:23px;stroke-width:2;transition:transform .2s,opacity .2s;opacity:0.55}
+.tab-btn svg{width:23px;height:23px;stroke-width:2;transition:transform .4s var(--spring-snappy),opacity .2s;opacity:0.55}
 .tab-btn.active svg{transform:scale(1.08);opacity:1}
 .tab-btn span{font-size:10px;font-weight:600;letter-spacing:0.5px;text-transform:uppercase}
 .tab-indicator{
   position:absolute;top:0;height:2px;border-radius:0 0 2px 2px;background:var(--primary);
-  transition:left .25s cubic-bezier(0.4,0,0.2,1),width .25s;
+  transition:left .4s var(--spring-snappy),width .4s var(--spring-snappy);
 }
 
 /* ================================================================
@@ -406,7 +448,7 @@ body{
 ================================================================ */
 .settings-panel{
   position:fixed;inset:0;z-index:800;background:var(--bg);
-  transform:translateY(100%);transition:transform .35s cubic-bezier(0.4,0,0.2,1);
+  transform:translateY(100%);transition:transform .5s var(--spring-bouncy);
   overflow-y:auto;-webkit-overflow-scrolling:touch;
   padding:calc(var(--it) + 16px) 20px calc(var(--ib) + 20px);
 }
@@ -463,7 +505,7 @@ body{
 ================================================================ */
 .photo-sheet{
   position:fixed;inset:0;z-index:900;background:var(--bg);
-  transform:translateY(100%);transition:transform .35s cubic-bezier(0.4,0,0.2,1);
+  transform:translateY(100%);transition:transform .5s var(--spring-bouncy);
   overflow-y:auto;-webkit-overflow-scrolling:touch;
 }
 .photo-sheet.open{transform:translateY(0)}
@@ -522,6 +564,127 @@ body{
 #photo-capture{display:none}
 
 /* ================================================================
+   LIGHT MODE OVERRIDES
+================================================================ */
+:root[data-theme="light"] .map-topbar,
+:root:not([data-theme="dark"]) .map-topbar{
+  background:linear-gradient(180deg,rgba(248,250,252,0.9) 0%,transparent 100%);
+}
+@media (prefers-color-scheme:light){
+  :root:not([data-theme="dark"]) .gps-pill,
+  :root:not([data-theme="dark"]) .prog-pill{
+    background:rgba(255,255,255,0.88);border-color:rgba(226,232,240,0.7);color:#0f172a;
+  }
+  :root:not([data-theme="dark"]) .fab{
+    background:rgba(255,255,255,0.92);border-color:rgba(226,232,240,0.7);color:#0f172a;
+    box-shadow:0 4px 16px rgba(0,0,0,0.1);
+  }
+  :root:not([data-theme="dark"]) .tab-bar{
+    background:rgba(255,255,255,0.98);border-color:rgba(226,232,240,0.8);
+  }
+  :root:not([data-theme="dark"]) .pt-card,
+  :root:not([data-theme="dark"]) .layer-panel{
+    background:rgba(255,255,255,0.97);border-color:var(--border);
+    box-shadow:0 -4px 40px rgba(0,0,0,0.08);
+  }
+  :root:not([data-theme="dark"]) .ar-nav-card,
+  :root:not([data-theme="dark"]) .ar-no-target{
+    background:rgba(255,255,255,0.85);border-color:rgba(226,232,240,0.5);
+  }
+  :root:not([data-theme="dark"]) .gps-modal-card,
+  :root:not([data-theme="dark"]) .boring-header,
+  :root:not([data-theme="dark"]) .photo-header{
+    background:rgba(255,255,255,0.97);
+  }
+}
+:root[data-theme="light"] .gps-pill,:root[data-theme="light"] .prog-pill{
+  background:rgba(255,255,255,0.88);border-color:rgba(226,232,240,0.7);color:#0f172a;
+}
+:root[data-theme="light"] .fab{
+  background:rgba(255,255,255,0.92);border-color:rgba(226,232,240,0.7);color:#0f172a;
+  box-shadow:0 4px 16px rgba(0,0,0,0.1);
+}
+:root[data-theme="light"] .tab-bar{
+  background:rgba(255,255,255,0.98);border-color:rgba(226,232,240,0.8);
+}
+:root[data-theme="light"] .pt-card,:root[data-theme="light"] .layer-panel{
+  background:rgba(255,255,255,0.97);border-color:var(--border);
+  box-shadow:0 -4px 40px rgba(0,0,0,0.08);
+}
+:root[data-theme="light"] .gps-modal-card,
+:root[data-theme="light"] .boring-header,
+:root[data-theme="light"] .photo-header{
+  background:rgba(255,255,255,0.97);
+}
+
+/* ================================================================
+   LOCK SCREEN
+================================================================ */
+.lock-screen{
+  position:fixed;inset:0;z-index:9999;
+  background:var(--bg);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:0 24px calc(var(--ib) + 20px);
+  transition:opacity .4s var(--spring-gentle),transform .5s var(--spring-bouncy);
+}
+.lock-screen.unlocking{
+  opacity:0;transform:scale(1.08);pointer-events:none;
+}
+.lock-icon{font-size:48px;margin-bottom:8px}
+.lock-title{font-size:22px;font-weight:900;letter-spacing:-0.5px;margin-bottom:2px}
+.lock-version{font-size:12px;color:var(--text3);margin-bottom:28px}
+.lock-dots{
+  display:flex;gap:14px;margin-bottom:12px;height:20px;align-items:center;justify-content:center;
+}
+.lock-dot{
+  width:14px;height:14px;border-radius:50%;
+  border:2px solid var(--text3);background:transparent;
+  transition:all .2s var(--spring-snappy);
+}
+.lock-dot.filled{
+  background:var(--primary);border-color:var(--primary);
+  transform:scale(1.15);
+}
+.lock-dot.wrong{
+  border-color:var(--danger);background:var(--danger);
+}
+.lock-error{
+  font-size:13px;color:var(--danger);height:20px;line-height:20px;
+  margin-bottom:8px;text-align:center;
+}
+.lock-pad{
+  display:grid;grid-template-columns:repeat(3,76px);gap:12px;
+  justify-content:center;margin-bottom:20px;
+}
+.lock-key{
+  width:76px;height:76px;border-radius:50%;border:1.5px solid var(--border);
+  background:var(--surface);color:var(--text);font-size:28px;font-weight:300;
+  display:flex;align-items:center;justify-content:center;cursor:pointer;
+  transition:transform .35s var(--spring-snappy),background .15s;
+  -webkit-tap-highlight-color:transparent;
+}
+.lock-key:active{transform:scale(0.9);background:var(--surface2)}
+.lock-key-del{font-size:22px;color:var(--text2)}
+.lock-key-spacer{width:76px;height:76px}
+.lock-skip{
+  font-size:14px;color:var(--text3);cursor:pointer;padding:12px 24px;
+  background:none;border:none;
+}
+.lock-setup-msg{
+  font-size:14px;color:var(--text2);text-align:center;margin-bottom:16px;
+}
+.lock-dots.shake{
+  animation:lock-shake .5s var(--spring-snappy);
+}
+@keyframes lock-shake{
+  0%,100%{transform:translateX(0)}
+  20%{transform:translateX(-12px)}
+  40%{transform:translateX(10px)}
+  60%{transform:translateX(-8px)}
+  80%{transform:translateX(5px)}
+}
+
+/* ================================================================
    GPS ACCURACY MODAL
 ================================================================ */
 .gps-modal-overlay{
@@ -545,7 +708,7 @@ body{
 ================================================================ */
 .boring-sheet{
   position:fixed;inset:0;z-index:920;background:var(--bg);
-  transform:translateY(100%);transition:transform .35s cubic-bezier(0.4,0,0.2,1);
+  transform:translateY(100%);transition:transform .5s var(--spring-bouncy);
   display:flex;flex-direction:column;overflow:hidden;
 }
 .boring-sheet.open{transform:translateY(0)}
@@ -579,8 +742,9 @@ body{
 .bl-chip{
   padding:9px 16px;border-radius:20px;border:1.5px solid var(--border);
   background:var(--surface2);color:var(--text2);font-size:14px;font-weight:600;
-  cursor:pointer;transition:all .15s;white-space:nowrap;
+  cursor:pointer;transition:all .35s var(--spring-snappy);white-space:nowrap;
 }
+.bl-chip:active{transform:scale(0.95)}
 .bl-chip.active{border-color:var(--primary);background:rgba(59,130,246,0.18);color:var(--primary)}
 .bl-input{
   width:100%;padding:11px 14px;border-radius:10px;border:1.5px solid var(--border);
@@ -705,6 +869,34 @@ body{
 </style>
 </head>
 <body>
+
+<!-- LOCK SCREEN -->
+<div class="lock-screen" id="lock-screen" style="display:none">
+  <div class="lock-icon">🧭</div>
+  <div class="lock-title">SBMM Field Navigator</div>
+  <div class="lock-version">v3.1</div>
+  <div class="lock-dots" id="lock-dots">
+    <span class="lock-dot"></span><span class="lock-dot"></span><span class="lock-dot"></span>
+    <span class="lock-dot"></span><span class="lock-dot"></span><span class="lock-dot"></span>
+  </div>
+  <div class="lock-error" id="lock-error"></div>
+  <div class="lock-setup-msg" id="lock-setup-msg" style="display:none">Confirm your passcode</div>
+  <div class="lock-pad" id="lock-pad">
+    <button class="lock-key" data-key="1">1</button>
+    <button class="lock-key" data-key="2">2</button>
+    <button class="lock-key" data-key="3">3</button>
+    <button class="lock-key" data-key="4">4</button>
+    <button class="lock-key" data-key="5">5</button>
+    <button class="lock-key" data-key="6">6</button>
+    <button class="lock-key" data-key="7">7</button>
+    <button class="lock-key" data-key="8">8</button>
+    <button class="lock-key" data-key="9">9</button>
+    <div class="lock-key-spacer"></div>
+    <button class="lock-key" data-key="0">0</button>
+    <button class="lock-key lock-key-del" data-key="del">&#9003;</button>
+  </div>
+  <button class="lock-skip" id="lock-skip">Skip (read-only)</button>
+</div>
 
 <!-- PERMISSION SCREEN -->
 <div class="perm-screen" id="perm-screen">
@@ -906,6 +1098,30 @@ body{
   </div>
 
   <div class="set-section">
+    <div class="set-section-label">Appearance</div>
+    <div class="set-card">
+      <div class="set-row">
+        <div class="set-row-label">Theme</div>
+        <div class="set-seg">
+          <button class="seg-btn on" id="theme-auto">Auto</button>
+          <button class="seg-btn" id="theme-light">Light</button>
+          <button class="seg-btn" id="theme-dark">Dark</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="set-section">
+    <div class="set-section-label">Security</div>
+    <div class="set-card">
+      <div class="set-row">
+        <div><div class="set-row-label">Lock screen passcode</div><div class="set-row-desc" id="passcode-status">Not set</div></div>
+        <button class="seg-btn" id="set-passcode-btn" style="white-space:nowrap">Set Passcode</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="set-section">
     <div class="set-section-label">GitHub Integration</div>
     <div class="set-card">
       <div class="set-row" style="flex-direction:column;align-items:stretch;gap:6px">
@@ -926,6 +1142,10 @@ body{
         <div><div class="set-row-label">Visited</div><div class="set-row-desc" id="visited-count">0 of 50 points</div></div>
         <div id="export-btn" style="font-size:13px;color:var(--primary);font-weight:600;cursor:pointer">Export CSV</div>
       </div>
+      <div class="set-row">
+        <div><div class="set-row-label">Boring Log PDF</div><div class="set-row-desc">ASTM D2488 format</div></div>
+        <div id="export-pdf-btn" style="font-size:13px;color:var(--primary);font-weight:600;cursor:pointer">Export PDF</div>
+      </div>
       <div class="set-row" style="flex-direction:column;align-items:stretch;gap:8px">
         <button class="set-action-btn danger" id="reset-btn">Clear All Visited</button>
       </div>
@@ -933,7 +1153,7 @@ body{
   </div>
 
   <div class="set-footer">
-    SBMM ABP Field Navigator v3.0<br>
+    SBMM ABP Field Navigator v3.1<br>
     50 R2 Sampling Points · Sulphur Bank Mercury Mine<br>
     Built for field use · Map tiles require network
   </div>
@@ -1212,18 +1432,261 @@ body{
       </div>
     </div>
 
-    <!-- Save / Unmark -->
+    <!-- Save / Unmark / PDF -->
     <div class="bl-section">
       <button class="bl-save-btn" id="bl-save-btn">💾 Save &amp; Mark Done</button>
       <button class="bl-unmark-btn" id="bl-unmark-btn" style="display:none">🗑 Unmark This Point</button>
+      <button class="set-action-btn" id="bl-export-pdf" style="margin-top:10px">📄 Export Boring Log PDF</button>
     </div>
     <div style="height:48px"></div>
   </div>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.2/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <script>
 'use strict';
+
+// ================================================================
+// INDEXEDDB PERSISTENCE LAYER
+// ================================================================
+const DB_NAME='sbmm_navigator';
+const DB_VERSION=1;
+let _db=null;
+
+function openDB(){
+  return new Promise((resolve,reject)=>{
+    if(_db){resolve(_db);return}
+    const req=indexedDB.open(DB_NAME,DB_VERSION);
+    req.onupgradeneeded=e=>{
+      const db=e.target.result;
+      if(!db.objectStoreNames.contains('kv'))db.createObjectStore('kv');
+      if(!db.objectStoreNames.contains('photos')){
+        const ps=db.createObjectStore('photos',{keyPath:'_id',autoIncrement:true});
+        ps.createIndex('pointId','pointId',{unique:false});
+        ps.createIndex('uploaded','uploaded',{unique:false});
+      }
+    };
+    req.onsuccess=e=>{_db=e.target.result;resolve(_db)};
+    req.onerror=()=>reject(req.error);
+  });
+}
+
+async function dbGet(key,fallback){
+  try{
+    const db=await openDB();
+    return new Promise(resolve=>{
+      const tx=db.transaction('kv','readonly');
+      const req=tx.objectStore('kv').get(key);
+      req.onsuccess=()=>resolve(req.result!==undefined?req.result:fallback);
+      req.onerror=()=>resolve(fallback);
+    });
+  }catch(e){return fallback}
+}
+
+async function dbSet(key,value){
+  try{
+    const db=await openDB();
+    return new Promise((resolve,reject)=>{
+      const tx=db.transaction('kv','readwrite');
+      tx.objectStore('kv').put(value,key);
+      tx.oncomplete=()=>resolve();
+      tx.onerror=()=>reject(tx.error);
+    });
+  }catch(e){console.warn('dbSet failed:',key,e)}
+}
+
+async function dbPhotoAdd(photo){
+  try{
+    const db=await openDB();
+    return new Promise((resolve,reject)=>{
+      const tx=db.transaction('photos','readwrite');
+      const req=tx.objectStore('photos').add(photo);
+      req.onsuccess=()=>resolve(req.result);
+      tx.onerror=()=>reject(tx.error);
+    });
+  }catch(e){console.warn('dbPhotoAdd failed:',e)}
+}
+
+async function dbPhotosForPoint(pointId){
+  try{
+    const db=await openDB();
+    return new Promise(resolve=>{
+      const tx=db.transaction('photos','readonly');
+      const idx=tx.objectStore('photos').index('pointId');
+      const req=idx.getAll(pointId);
+      req.onsuccess=()=>resolve(req.result||[]);
+      req.onerror=()=>resolve([]);
+    });
+  }catch(e){return[]}
+}
+
+// ================================================================
+// LOCK SCREEN + WEB CRYPTO
+// ================================================================
+const LOCK_HASH_KEY='sbmm_lock_hash';
+const LOCK_SALT_KEY='sbmm_lock_salt';
+let _lockReadOnly=false;
+
+async function hashPasscode(code,salt){
+  const enc=new TextEncoder();
+  const keyMat=await crypto.subtle.importKey('raw',enc.encode(code),'PBKDF2',false,['deriveBits']);
+  const bits=await crypto.subtle.deriveBits({name:'PBKDF2',salt,iterations:100000,hash:'SHA-256'},keyMat,256);
+  return new Uint8Array(bits);
+}
+
+function u8ToHex(arr){return Array.from(arr).map(b=>b.toString(16).padStart(2,'0')).join('')}
+function hexToU8(hex){const a=new Uint8Array(hex.length/2);for(let i=0;i<hex.length;i+=2)a[i/2]=parseInt(hex.substring(i,i+2),16);return a}
+
+async function isPasscodeSet(){
+  const h=await dbGet(LOCK_HASH_KEY,null);
+  return !!h;
+}
+
+async function verifyPasscode(code){
+  const stored=await dbGet(LOCK_HASH_KEY,null);
+  const saltHex=await dbGet(LOCK_SALT_KEY,null);
+  if(!stored||!saltHex)return false;
+  const salt=hexToU8(saltHex);
+  const hash=await hashPasscode(code,salt);
+  return u8ToHex(hash)===stored;
+}
+
+async function setPasscode(code){
+  const salt=crypto.getRandomValues(new Uint8Array(16));
+  const hash=await hashPasscode(code,salt);
+  await dbSet(LOCK_HASH_KEY,u8ToHex(hash));
+  await dbSet(LOCK_SALT_KEY,u8ToHex(salt));
+}
+
+function initLockScreen(){
+  return new Promise(async resolve=>{
+    const hasCode=await isPasscodeSet();
+    if(!hasCode){resolve(false);return}
+    const lockEl=document.getElementById('lock-screen');
+    lockEl.style.display='flex';
+    let entered='';
+    let setupPhase=null; // null=normal unlock, 'first'=entering new, 'confirm'=confirming
+
+    function updateDots(){
+      const dots=document.getElementById('lock-dots').children;
+      for(let i=0;i<6;i++){
+        dots[i].classList.toggle('filled',i<entered.length);
+        dots[i].classList.remove('wrong');
+      }
+    }
+
+    async function checkCode(){
+      if(entered.length!==6)return;
+      if(setupPhase==='first'){
+        setupPhase='confirm';
+        window._newPasscode=entered;
+        entered='';
+        document.getElementById('lock-setup-msg').style.display='block';
+        document.getElementById('lock-setup-msg').textContent='Confirm your passcode';
+        updateDots();
+        return;
+      }
+      if(setupPhase==='confirm'){
+        if(entered===window._newPasscode){
+          await setPasscode(entered);
+          delete window._newPasscode;
+          unlock();
+        }else{
+          showWrong('Passcodes don\'t match. Try again.');
+          setupPhase='first';
+          document.getElementById('lock-setup-msg').textContent='Enter new passcode';
+        }
+        return;
+      }
+      const ok=await verifyPasscode(entered);
+      if(ok){unlock();}
+      else{showWrong('Incorrect passcode');}
+    }
+
+    function showWrong(msg){
+      const dots=document.getElementById('lock-dots');
+      const dotsArr=dots.children;
+      for(let i=0;i<6;i++)dotsArr[i].classList.add('wrong');
+      dots.classList.add('shake');
+      document.getElementById('lock-error').textContent=msg;
+      if(navigator.vibrate)navigator.vibrate([30,50,30]);
+      setTimeout(()=>{
+        entered='';dots.classList.remove('shake');
+        updateDots();
+        setTimeout(()=>{document.getElementById('lock-error').textContent=''},1500);
+      },500);
+    }
+
+    function unlock(){
+      _lockReadOnly=false;
+      lockEl.classList.add('unlocking');
+      if(navigator.vibrate)navigator.vibrate([8,40,8,40,15]);
+      setTimeout(()=>{lockEl.style.display='none';resolve(true)},400);
+    }
+
+    document.getElementById('lock-pad').addEventListener('click',e=>{
+      const btn=e.target.closest('[data-key]');
+      if(!btn)return;
+      const key=btn.dataset.key;
+      if(navigator.vibrate)navigator.vibrate(5);
+      if(key==='del'){
+        if(entered.length>0)entered=entered.slice(0,-1);
+        updateDots();return;
+      }
+      if(entered.length>=6)return;
+      entered+=key;
+      updateDots();
+      if(entered.length===6)setTimeout(checkCode,150);
+    });
+
+    document.getElementById('lock-skip').addEventListener('click',()=>{
+      _lockReadOnly=true;
+      lockEl.classList.add('unlocking');
+      setTimeout(()=>{lockEl.style.display='none';resolve(false)},400);
+    });
+  });
+}
+
+// ================================================================
+// HAPTIC FEEDBACK SYSTEM
+// ================================================================
+const Haptic={
+  tick(){if(PREFS.vibrate&&navigator.vibrate)navigator.vibrate(10)},
+  tap(){if(PREFS.vibrate&&navigator.vibrate)navigator.vibrate(8)},
+  medium(){if(PREFS.vibrate&&navigator.vibrate)navigator.vibrate(15)},
+  success(){if(PREFS.vibrate&&navigator.vibrate)navigator.vibrate([15,50,15])},
+  gpsLock(){if(PREFS.vibrate&&navigator.vibrate)navigator.vibrate([10,30,10])},
+  error(){if(PREFS.vibrate&&navigator.vibrate)navigator.vibrate([30,50,30])},
+  keyClick(){if(navigator.vibrate)navigator.vibrate(5)},
+};
+
+// ================================================================
+// THEME SYSTEM
+// ================================================================
+function initTheme(){
+  const saved=localStorage.getItem('sbmm_theme')||'auto';
+  applyTheme(saved);
+  document.querySelectorAll('#theme-auto,#theme-light,#theme-dark').forEach(btn=>{
+    const t=btn.id.replace('theme-','');
+    btn.classList.toggle('on',t===saved);
+    btn.addEventListener('click',()=>{
+      document.querySelectorAll('#theme-auto,#theme-light,#theme-dark').forEach(b=>b.classList.remove('on'));
+      btn.classList.add('on');
+      localStorage.setItem('sbmm_theme',t);
+      applyTheme(t);
+      Haptic.tap();
+    });
+  });
+}
+
+function applyTheme(theme){
+  const root=document.documentElement;
+  if(theme==='auto')root.removeAttribute('data-theme');
+  else root.setAttribute('data-theme',theme);
+}
+
 // ================================================================
 // SAFARI VIEWPORT FIX
 // Safari's 100vh includes the browser chrome — dynamically set real height
@@ -1317,6 +1780,7 @@ function safeParse(key,fallback){
   catch(e){console.warn('Corrupted localStorage key:',key,e);return fallback;}
 }
 
+// Initial load from localStorage (fast, sync) — will be upgraded to IndexedDB async
 let PREFS=Object.assign({},PREFS_DEF,safeParse(PREFS_KEY,{}));
 let VISITED=safeParse(VIS_KEY,{});
 let VISIT_LOG=safeParse(LOG_KEY,[]);
@@ -1335,6 +1799,36 @@ if(!localStorage.getItem(BORING_KEY)){
   const old=safeParse('sbmm_boring_v1',{});
   Object.entries(old).forEach(([id,log])=>{if(log&&typeof log==='object'&&!Array.isArray(log))BORING_LOGS[id]=[{...log,interval:1}];});
   if(Object.keys(BORING_LOGS).length)localStorage.setItem(BORING_KEY,JSON.stringify(BORING_LOGS));
+}
+
+// Async IndexedDB migration — upgrade data from localStorage to IndexedDB
+async function migrateToIDB(){
+  try{
+    const existing=await dbGet('_migrated',false);
+    if(existing)return;
+    // Copy current in-memory state to IndexedDB
+    await dbSet(PREFS_KEY,PREFS);
+    await dbSet(VIS_KEY,VISITED);
+    await dbSet(LOG_KEY,VISIT_LOG);
+    await dbSet(BORING_KEY,BORING_LOGS);
+    // Photos: store metadata in IDB (blobs will be stored directly on new captures)
+    await dbSet(PHOTO_KEY,PHOTOS);
+    await dbSet('_migrated',true);
+    console.log('Data migrated to IndexedDB');
+  }catch(e){console.warn('IDB migration failed (using localStorage fallback):',e)}
+}
+
+// Load latest data from IndexedDB (overrides localStorage if available)
+async function loadFromIDB(){
+  try{
+    const migrated=await dbGet('_migrated',false);
+    if(!migrated)return;
+    PREFS=Object.assign({},PREFS_DEF,await dbGet(PREFS_KEY,PREFS));
+    VISITED=await dbGet(VIS_KEY,VISITED);
+    VISIT_LOG=await dbGet(LOG_KEY,VISIT_LOG);
+    BORING_LOGS=await dbGet(BORING_KEY,BORING_LOGS);
+    PHOTOS=await dbGet(PHOTO_KEY,PHOTOS);
+  }catch(e){console.warn('IDB load failed, using localStorage:',e)}
 }
 
 const S={
@@ -1403,9 +1897,10 @@ function fmtD(m){
   }
   return m<1000?Math.round(m)+' m':(m/1000).toFixed(2)+' km';
 }
-function savePrefs(){localStorage.setItem(PREFS_KEY,JSON.stringify(PREFS))}
-function saveVis(){localStorage.setItem(VIS_KEY,JSON.stringify(VISITED));localStorage.setItem(LOG_KEY,JSON.stringify(VISIT_LOG))}
-function savePhotos(){localStorage.setItem(PHOTO_KEY,JSON.stringify(PHOTOS))}
+function savePrefs(){localStorage.setItem(PREFS_KEY,JSON.stringify(PREFS));dbSet(PREFS_KEY,PREFS)}
+function saveVis(){localStorage.setItem(VIS_KEY,JSON.stringify(VISITED));localStorage.setItem(LOG_KEY,JSON.stringify(VISIT_LOG));dbSet(VIS_KEY,VISITED);dbSet(LOG_KEY,VISIT_LOG)}
+function savePhotos(){try{localStorage.setItem(PHOTO_KEY,JSON.stringify(PHOTOS))}catch(e){};dbSet(PHOTO_KEY,PHOTOS)}
+function saveBoring(){localStorage.setItem(BORING_KEY,JSON.stringify(BORING_LOGS));dbSet(BORING_KEY,BORING_LOGS)}
 
 // ================================================================
 // MAP SETUP
@@ -1570,9 +2065,12 @@ function setGPSGood(acc){
   // Color code by accuracy: green ≤3ft, yellow ≤10ft, red >10ft
   if(ft<=GPS_LOCK_FT){
     pill.style.borderColor='rgba(34,197,94,0.7)';pill.style.color='#22c55e';
+    if(!pill._wasLocked){pill._wasLocked=true;Haptic.gpsLock()}
   }else if(ft<=10){
+    pill._wasLocked=false;
     pill.style.borderColor='rgba(234,179,8,0.7)';pill.style.color='#eab308';
   }else{
+    pill._wasLocked=false;
     pill.style.borderColor='rgba(239,68,68,0.7)';pill.style.color='#ef4444';
   }
 }
@@ -1677,6 +2175,7 @@ function updateMiniCompass(){
 // ================================================================
 function selectPoint(pt){
   S.sel=pt;
+  Haptic.medium();
   drawMapMarkers();
   drawNavLine();
   updateCard();
@@ -2308,6 +2807,10 @@ function checkGPSAndOpenLog(pt,fromArrival=false,forceInterval=null){
 function initBoringLogEvents(){
   // Close
   document.getElementById('boring-close').addEventListener('click',closeBoringLog);
+  // PDF export for current point
+  document.getElementById('bl-export-pdf').addEventListener('click',()=>{
+    if(_boringPt)exportBoringLogPDF(_boringPt.id);
+  });
 
   // Depth chips
   const depthCont=document.getElementById('depth-chips');
@@ -2440,7 +2943,7 @@ function initBoringLogEvents(){
       // Remove just this interval from the array
       BORING_LOGS[pt.id]=(BORING_LOGS[pt.id]||[]).filter(l=>l.interval!==_boringInterval);
       if(!BORING_LOGS[pt.id].length)delete BORING_LOGS[pt.id];
-      localStorage.setItem(BORING_KEY,JSON.stringify(BORING_LOGS));
+      saveBoring();
       // Remove from VISITED if point is no longer complete
       if(!isPointComplete(pt)){
         delete VISITED[pt.id];
@@ -2471,7 +2974,8 @@ function initBoringLogEvents(){
     logs.push(log);
     logs.sort((a,b)=>a.interval-b.interval);
     BORING_LOGS[_boringPt.id]=logs;
-    localStorage.setItem(BORING_KEY,JSON.stringify(BORING_LOGS));
+    saveBoring();
+    Haptic.success();
     const savedPt=_boringPt;
     const nowComplete=isPointComplete(savedPt);
     const req=requiredIntervals(savedPt);
@@ -3551,6 +4055,109 @@ async function uploadToGitHub(blob,pt,meta,token){
 }
 
 // ================================================================
+// BORING LOG PDF EXPORT (ASTM D2488 FORMAT)
+// ================================================================
+function exportBoringLogPDF(pointId){
+  if(typeof window.jspdf==='undefined'){alert('PDF library not loaded');return}
+  const {jsPDF}=window.jspdf;
+
+  // Gather points to export
+  const points=pointId?R2.filter(p=>p.id===pointId):R2.filter(p=>getPointLogs(p).length>0);
+  if(!points.length){alert('No boring logs to export');return}
+
+  const doc=new jsPDF({orientation:'portrait',unit:'pt',format:'letter'});
+  const pageW=doc.internal.pageSize.getWidth();
+  const pageH=doc.internal.pageSize.getHeight();
+  const margin=40;
+
+  points.forEach((pt,pi)=>{
+    if(pi>0)doc.addPage();
+    const logs=getPointLogs(pt);
+    const req=requiredIntervals(pt);
+
+    // Header
+    doc.setFillColor(15,23,42);
+    doc.rect(0,0,pageW,80,  'F');
+    doc.setTextColor(255,255,255);
+    doc.setFontSize(16);doc.setFont('helvetica','bold');
+    doc.text('BORING LOG',margin,30);
+    doc.setFontSize(11);doc.setFont('helvetica','normal');
+    doc.text(`PROJECT: SBMM OU1 ABP Pre-Design`,margin,48);
+    doc.text(`BORING: ${pt.id}`,pageW-margin,30,{align:'right'});
+    doc.text(`TYPE: ${pt.t.charAt(0).toUpperCase()+pt.t.slice(1)} | AREA: ${pt.a==='W'?'West':'East'}`,pageW-margin,48,{align:'right'});
+
+    // Date + GPS row
+    const firstLog=logs[0];
+    const dateStr=firstLog?new Date(firstLog.timestamp).toLocaleDateString('en-US',{month:'2-digit',day:'2-digit',year:'numeric'}):'--';
+    doc.text(`DATE: ${dateStr}`,margin,64);
+    const gpsStr=`GPS: ${pt.lat.toFixed(6)}, ${pt.lon.toFixed(6)}`;
+    doc.text(gpsStr,pageW-margin,64,{align:'right'});
+
+    // Table
+    const tableHead=[['Depth','USCS','Soil Description','Munsell','Moisture','Density','PID (ppm)','Odor','Stain','Status','Notes']];
+    const tableBody=logs.map(log=>[
+      log.depth||'--',
+      log.uscs||'--',
+      log.soil_description||generateSoilDescription(log)||'--',
+      log.munsell_notation||'--',
+      log.moisture||'--',
+      log.density_consistency||'--',
+      log.pid_ppm!=null?String(log.pid_ppm):'--',
+      (log.odor_level||'None')+(log.odor_type&&log.odor_type!=='None'?` (${log.odor_type})`:''),
+      log.staining||'None',
+      log.status||'Collected',
+      log.notes||'',
+    ]);
+
+    doc.autoTable({
+      startY:90,
+      margin:{left:margin,right:margin},
+      head:tableHead,
+      body:tableBody,
+      theme:'grid',
+      headStyles:{fillColor:[30,41,59],textColor:[241,245,249],fontSize:7,fontStyle:'bold',cellPadding:4},
+      bodyStyles:{fontSize:7,cellPadding:4,textColor:[15,23,42],lineColor:[200,200,200]},
+      columnStyles:{
+        0:{cellWidth:45},
+        1:{cellWidth:30},
+        2:{cellWidth:120},
+        3:{cellWidth:48},
+        4:{cellWidth:40},
+        5:{cellWidth:45},
+        6:{cellWidth:35},
+        7:{cellWidth:45},
+        8:{cellWidth:30},
+        9:{cellWidth:40},
+        10:{cellWidth:52},
+      },
+      alternateRowStyles:{fillColor:[248,250,252]},
+      didDrawPage:(data)=>{
+        // Footer on each page
+        doc.setTextColor(148,163,184);doc.setFontSize(7);
+        doc.text(`SBMM Field Navigator v3.1 | ${pt.id} | Sheet ${doc.internal.getNumberOfPages()}`,margin,pageH-20);
+        doc.text(`Exported ${new Date().toLocaleDateString('en-US')}`,pageW-margin,pageH-20,{align:'right'});
+      }
+    });
+
+    // Legend below table
+    const finalY=(doc.lastAutoTable?.finalY||200)+16;
+    if(finalY<pageH-60){
+      doc.setFontSize(7);doc.setTextColor(100,116,139);
+      const uscsLegend=logs.map(l=>l.uscs&&l.uscs_desc?`${l.uscs}=${l.uscs_desc}`:'').filter(Boolean);
+      const unique=[...new Set(uscsLegend)];
+      if(unique.length){
+        doc.text('LEGEND: '+unique.join(', '),margin,finalY);
+      }
+    }
+  });
+
+  const fileName=pointId
+    ?`boring_log_${pointId}_${new Date().toISOString().split('T')[0]}.pdf`
+    :`boring_logs_all_${new Date().toISOString().split('T')[0]}.pdf`;
+  doc.save(fileName);
+}
+
+// ================================================================
 // SETTINGS WIRING
 // ================================================================
 function initSettings(){
@@ -3623,10 +4230,71 @@ function initSettings(){
     a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
     a.download=`sbmm_field_log_${new Date().toISOString().split('T')[0]}.csv`;a.click();
   });
+  document.getElementById('export-pdf-btn').addEventListener('click',()=>exportBoringLogPDF());
+  // Passcode settings
+  (async()=>{
+    const hasCode=await isPasscodeSet();
+    document.getElementById('passcode-status').textContent=hasCode?'Passcode is set':'Not set';
+  })();
+  document.getElementById('set-passcode-btn').addEventListener('click',()=>{
+    const lockEl=document.getElementById('lock-screen');
+    lockEl.style.display='flex';
+    let entered='';
+    let phase='first';
+    let newCode='';
+    document.getElementById('lock-setup-msg').style.display='block';
+    document.getElementById('lock-setup-msg').textContent='Enter new passcode';
+    document.getElementById('lock-error').textContent='';
+    const dots=document.getElementById('lock-dots').children;
+    for(let i=0;i<6;i++){dots[i].classList.remove('filled','wrong')}
+
+    function onKey(e){
+      const btn=e.target.closest('[data-key]');
+      if(!btn)return;
+      const key=btn.dataset.key;
+      Haptic.keyClick();
+      if(key==='del'){if(entered.length>0)entered=entered.slice(0,-1);updateDots2();return}
+      if(entered.length>=6)return;
+      entered+=key;updateDots2();
+      if(entered.length===6)setTimeout(processCode,150);
+    }
+    function updateDots2(){
+      for(let i=0;i<6;i++){dots[i].classList.toggle('filled',i<entered.length);dots[i].classList.remove('wrong')}
+    }
+    async function processCode(){
+      if(phase==='first'){
+        newCode=entered;entered='';phase='confirm';
+        document.getElementById('lock-setup-msg').textContent='Confirm your passcode';
+        updateDots2();
+      }else{
+        if(entered===newCode){
+          await setPasscode(entered);
+          Haptic.success();
+          document.getElementById('passcode-status').textContent='Passcode is set';
+          lockEl.style.display='none';
+          document.getElementById('lock-setup-msg').style.display='none';
+          document.getElementById('lock-pad').removeEventListener('click',onKey);
+        }else{
+          Haptic.error();
+          for(let i=0;i<6;i++)dots[i].classList.add('wrong');
+          document.getElementById('lock-dots').classList.add('shake');
+          document.getElementById('lock-error').textContent='Passcodes don\'t match';
+          setTimeout(()=>{
+            entered='';phase='first';newCode='';
+            document.getElementById('lock-dots').classList.remove('shake');
+            document.getElementById('lock-setup-msg').textContent='Enter new passcode';
+            document.getElementById('lock-error').textContent='';
+            updateDots2();
+          },600);
+        }
+      }
+    }
+    document.getElementById('lock-pad').addEventListener('click',onKey);
+  });
   document.getElementById('reset-btn').addEventListener('click',()=>{
     if(confirm('Clear all visited points and visit log?')){
       VISITED={};VISIT_LOG=[];BORING_LOGS={};
-      saveVis();localStorage.setItem(BORING_KEY,JSON.stringify(BORING_LOGS));
+      saveVis();saveBoring();
       drawMapMarkers();renderList();updateProgress();updateCard();
     }
   });
@@ -3663,7 +4331,7 @@ function initLayerPanel(){
 function initUI(){
   // Tab buttons
   document.querySelectorAll('.tab-btn').forEach(btn=>{
-    btn.addEventListener('click',()=>setView(btn.dataset.view));
+    btn.addEventListener('click',()=>{Haptic.tick();setView(btn.dataset.view)});
   });
 
   // FABs
@@ -3713,6 +4381,7 @@ function initUI(){
   // Filters
   document.querySelectorAll('.fchip').forEach(btn=>{
     btn.addEventListener('click',function(){
+      Haptic.tap();
       document.querySelectorAll('.fchip').forEach(b=>b.classList.remove('on'));
       this.classList.add('on');S.filter=this.dataset.f;renderList();
     });
@@ -3742,7 +4411,17 @@ function initPermissions(){
 // ================================================================
 // INIT
 // ================================================================
-function init(){
+async function init(){
+  // Load data from IndexedDB (upgrades localStorage data)
+  await loadFromIDB();
+  migrateToIDB(); // fire-and-forget background migration
+
+  // Lock screen (shows only if passcode is set)
+  await initLockScreen();
+
+  // Theme
+  initTheme();
+
   initPermissions();
   initUI();
   initSettings();
@@ -3777,7 +4456,12 @@ function init(){
   const canvas=document.getElementById('ar-canvas');
   canvas.width=window.innerWidth;canvas.height=window.innerHeight;
 
-  console.log('SBMM Field Navigator v3.0 ready. 50 R2 points loaded.');
+  // Register service worker
+  if('serviceWorker' in navigator){
+    navigator.serviceWorker.register('sw.js').then(()=>console.log('SW registered')).catch(e=>console.warn('SW failed:',e));
+  }
+
+  console.log('SBMM Field Navigator v3.1 ready. 50 R2 points loaded.');
 }
 
 document.addEventListener('DOMContentLoaded',init);

@@ -1,0 +1,19 @@
+{
+  "name": "SBMM Field Navigator",
+  "short_name": "SBMM Nav",
+  "description": "GPS-guided field navigator for SBMM sampling points with AR, boring log, and photo capture.",
+  "start_url": "navigator.html",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#0f172a",
+  "background_color": "#0f172a",
+  "categories": ["utilities", "productivity"],
+  "icons": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%230f172a'/><text x='50' y='62' text-anchor='middle' font-size='50'>🧭</text></svg>",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
