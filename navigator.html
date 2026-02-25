@@ -217,6 +217,8 @@ body{
 #ar-canvas{
   position:absolute;inset:0;width:100%;height:100%;
   pointer-events:none;
+  transform-origin:50% 40%;
+  will-change:transform,filter,opacity;
 }
 .ar-topbar{
   position:absolute;top:0;left:0;right:0;z-index:100;
@@ -2519,104 +2521,260 @@ function getTiltMode(){
   return'transition';
 }
 
-// ---- COMPASS MODE (phone flat) --------------------------------
-function renderCompass(ctx,W,H){
-  const cx=W/2,cy=H*0.48;
-  const R=Math.min(W,H)*0.32; // compass ring radius
+// ---- COMPASS MODE (phone flat) — premium tactical design ------
+function renderCompass(ctx,W,H,fade=1){
+  if(fade<=0.01)return;
+  const cx=W/2, cy=H*0.46;
+  const R=Math.min(W,H)*0.31;
+  const now=Date.now();
+  const pulse=0.5+0.5*Math.sin(now/700);
+  const pulse2=0.5+0.5*Math.sin(now/1100+1.2);
 
-  // Background
-  ctx.fillStyle='rgba(10,15,30,0.9)';
-  ctx.fillRect(0,0,W,H);
+  // ── Background: deep navy radial gradient ──────────────────────
+  ctx.save();ctx.globalAlpha=fade;
+  const bgG=ctx.createRadialGradient(cx,cy*0.7,0,cx,cy,Math.max(W,H)*0.72);
+  bgG.addColorStop(0,'rgba(12,22,48,0.97)');
+  bgG.addColorStop(0.55,'rgba(7,14,32,0.98)');
+  bgG.addColorStop(1,'rgba(3,7,18,0.99)');
+  ctx.fillStyle=bgG;ctx.fillRect(0,0,W,H);
+  ctx.restore();
 
-  // Outer ring
-  ctx.beginPath();ctx.arc(cx,cy,R+14,0,Math.PI*2);
-  ctx.strokeStyle='rgba(71,85,105,0.4)';ctx.lineWidth=1;ctx.stroke();
+  // ── Faint radar grid ──────────────────────────────────────────
+  ctx.save();ctx.globalAlpha=0.06*fade;
+  for(let i=1;i<=4;i++){
+    ctx.beginPath();ctx.arc(cx,cy,R*i*0.28,0,Math.PI*2);
+    ctx.strokeStyle='#5af';ctx.lineWidth=0.5;ctx.stroke();
+  }
+  for(let d=0;d<360;d+=30){
+    const a=d*Math.PI/180;
+    ctx.beginPath();ctx.moveTo(cx,cy);
+    ctx.lineTo(cx+R*1.25*Math.cos(a),cy+R*1.25*Math.sin(a));
+    ctx.strokeStyle='#5af';ctx.lineWidth=0.4;ctx.stroke();
+  }
+  ctx.restore();
 
   if(S.hdg==null){
-    ctx.fillStyle='rgba(255,255,255,0.5)';ctx.font='16px -apple-system';
+    ctx.save();ctx.globalAlpha=fade*0.55;
+    ctx.fillStyle='#fff';ctx.font='16px -apple-system';
     ctx.textAlign='center';ctx.textBaseline='middle';
     ctx.fillText('Enable compass — tap Locate',cx,cy);
-    return;
+    ctx.restore();return;
   }
-
   const hdg=S.hdg;
 
-  // Cardinal ticks + labels
-  const cardinals=[['N',0,'#ef4444'],['E',90,'#fff'],['S',180,'#fff'],['W',270,'#fff']];
-  for(let deg=0;deg<360;deg+=10){
-    const a=(deg-hdg)*Math.PI/180-Math.PI/2;
-    const isMaj=deg%30===0;
-    const r1=R+(isMaj?8:4);
+  // ── Target bearing arrow (most prominent — drawn first as layer) ──
+  if(S.sel&&S.lat!=null){
+    const tb=brg(S.lat,S.lon,S.sel.lat,S.sel.lon);
+    const tdist=hav(S.lat,S.lon,S.sel.lat,S.sel.lon);
+    const ta=(tb-hdg)*Math.PI/180-Math.PI/2;
+    const tipR=R*0.92;
+    const tipX=cx+tipR*Math.cos(ta),tipY=cy+tipR*Math.sin(ta);
+    const partial=isPointPartial(S.sel),complete=isPointComplete(S.sel);
+    const arrowClr=complete?'#10b981':partial?'#f59e0b':'#63aaff';
+    const glowClr=complete?'rgba(16,185,129,':partial?'rgba(245,158,11,':'rgba(80,160,255,';
+
+    ctx.save();ctx.globalAlpha=fade;
+    // Pulsing glow beam along the arrow axis
+    const beamG=ctx.createLinearGradient(cx,cy,tipX,tipY);
+    beamG.addColorStop(0,'rgba(0,0,0,0)');
+    beamG.addColorStop(0.35,`${glowClr}0.12)`);
+    beamG.addColorStop(0.8,`${glowClr}0.55)`);
+    beamG.addColorStop(1,`${glowClr}0.85)`);
+    ctx.strokeStyle=beamG;ctx.lineWidth=3;
+    ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(tipX,tipY);ctx.stroke();
+
+    // Sharp glowing arrowhead
+    ctx.shadowColor=arrowClr;ctx.shadowBlur=18+pulse*10;
+    const aLen=22,aSpread=0.38;
+    ctx.fillStyle=arrowClr;
     ctx.beginPath();
-    ctx.moveTo(cx+R*Math.cos(a),cy+R*Math.sin(a));
-    ctx.lineTo(cx+r1*Math.cos(a),cy+r1*Math.sin(a));
-    ctx.strokeStyle=isMaj?'rgba(255,255,255,0.5)':'rgba(255,255,255,0.2)';
-    ctx.lineWidth=isMaj?1.5:1;ctx.stroke();
+    ctx.moveTo(tipX,tipY);
+    ctx.lineTo(tipX+aLen*Math.cos(ta+Math.PI-aSpread),tipY+aLen*Math.sin(ta+Math.PI-aSpread));
+    ctx.lineTo(tipX+aLen*0.35*Math.cos(ta+Math.PI),tipY+aLen*0.35*Math.sin(ta+Math.PI));
+    ctx.lineTo(tipX+aLen*Math.cos(ta+Math.PI+aSpread),tipY+aLen*Math.sin(ta+Math.PI+aSpread));
+    ctx.closePath();ctx.fill();
+
+    // Pulsing halo rings at tip
+    for(let i=0;i<2;i++){
+      const prog=(now/900+i*0.5)%1;
+      ctx.beginPath();ctx.arc(tipX,tipY,8+prog*22,0,Math.PI*2);
+      ctx.strokeStyle=`${glowClr}${((1-prog)*0.5*fade).toFixed(2)})`;
+      ctx.lineWidth=1.5;ctx.shadowBlur=0;ctx.stroke();
+    }
+    ctx.restore();
+
+    // Target label bubble just outside ring
+    const lblR=R+40;
+    const lx=cx+lblR*Math.cos(ta),ly=cy+lblR*Math.sin(ta);
+    const shortId=S.sel.id.replace('ABP-R2-','');
+    ctx.save();ctx.globalAlpha=(0.9+0.1*pulse2)*fade;
+    const bw=78,bh=40,br=9;
+    // Drop shadow behind bubble
+    ctx.shadowColor='rgba(0,0,0,0.6)';ctx.shadowBlur=10;
+    const grad=ctx.createLinearGradient(lx-bw/2,ly-bh/2,lx+bw/2,ly+bh/2);
+    grad.addColorStop(0,'rgba(20,50,110,0.95)');
+    grad.addColorStop(1,'rgba(12,30,75,0.95)');
+    ctx.fillStyle=grad;
+    roundRect(ctx,lx-bw/2,ly-bh/2,bw,bh,br);ctx.fill();
+    ctx.shadowBlur=0;
+    ctx.strokeStyle=arrowClr;ctx.lineWidth=1.5;
+    roundRect(ctx,lx-bw/2,ly-bh/2,bw,bh,br);ctx.stroke();
+    ctx.fillStyle='#fff';ctx.font='bold 13px -apple-system';
+    ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(shortId,lx,ly-7);
+    ctx.fillStyle=arrowClr;ctx.font='600 11px -apple-system';
+    ctx.fillText(fmtD(tdist),lx,ly+8);
+    ctx.restore();
   }
-  cardinals.forEach(([label,deg,color])=>{
+
+  // ── Outer decorative bezel rings ──────────────────────────────
+  ctx.save();ctx.globalAlpha=fade;
+  ctx.beginPath();ctx.arc(cx,cy,R+22,0,Math.PI*2);
+  ctx.strokeStyle='rgba(55,80,120,0.55)';ctx.lineWidth=1.5;ctx.stroke();
+  ctx.beginPath();ctx.arc(cx,cy,R+26,0,Math.PI*2);
+  ctx.strokeStyle='rgba(80,120,180,0.18)';ctx.lineWidth=0.5;ctx.stroke();
+  ctx.restore();
+
+  // ── Ring inner fill (subtle gradient) ─────────────────────────
+  ctx.save();ctx.globalAlpha=fade;
+  const ringFill=ctx.createRadialGradient(cx,cy,0,cx,cy,R);
+  ringFill.addColorStop(0,'rgba(15,25,60,0)');
+  ringFill.addColorStop(0.75,'rgba(15,25,60,0.08)');
+  ringFill.addColorStop(1,'rgba(20,40,80,0.22)');
+  ctx.beginPath();ctx.arc(cx,cy,R,0,Math.PI*2);
+  ctx.fillStyle=ringFill;ctx.fill();
+  ctx.restore();
+
+  // ── Tick marks ───────────────────────────────────────────────
+  ctx.save();ctx.globalAlpha=fade;
+  for(let deg=0;deg<360;deg+=5){
     const a=(deg-hdg)*Math.PI/180-Math.PI/2;
-    const lx=cx+(R+24)*Math.cos(a),ly=cy+(R+24)*Math.sin(a);
-    ctx.fillStyle=color;ctx.font=`bold 15px -apple-system`;
+    const isCard=deg%90===0;
+    const is45=deg%45===0&&!isCard;
+    const is10=deg%10===0;
+    if(!is10&&!is45&&!isCard)continue;
+    const outerR=R;
+    const innerR=isCard?R-22:is45?R-15:R-10;
+    ctx.beginPath();
+    ctx.moveTo(cx+innerR*Math.cos(a),cy+innerR*Math.sin(a));
+    ctx.lineTo(cx+outerR*Math.cos(a),cy+outerR*Math.sin(a));
+    ctx.strokeStyle=isCard?'rgba(255,255,255,0.9)':is45?'rgba(255,255,255,0.5)':'rgba(255,255,255,0.25)';
+    ctx.lineWidth=isCard?2:is45?1.5:0.8;
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  // ── Cardinal + intercardinal labels ──────────────────────────
+  ctx.save();ctx.globalAlpha=fade;
+  const cardDefs=[
+    ['N',0,'#ff4d4d','bold 20px -apple-system',true],
+    ['NE',45,'rgba(255,255,255,0.48)','10px -apple-system',false],
+    ['E',90,'rgba(255,255,255,0.88)','bold 15px -apple-system',false],
+    ['SE',135,'rgba(255,255,255,0.48)','10px -apple-system',false],
+    ['S',180,'rgba(255,255,255,0.88)','bold 15px -apple-system',false],
+    ['SW',225,'rgba(255,255,255,0.48)','10px -apple-system',false],
+    ['W',270,'rgba(255,255,255,0.88)','bold 15px -apple-system',false],
+    ['NW',315,'rgba(255,255,255,0.48)','10px -apple-system',false],
+  ];
+  cardDefs.forEach(([label,deg,color,font,isN])=>{
+    const a=(deg-hdg)*Math.PI/180-Math.PI/2;
+    const lr=R-30;
+    const lx=cx+lr*Math.cos(a),ly=cy+lr*Math.sin(a);
+    if(isN){ctx.shadowColor='#ff4d4d';ctx.shadowBlur=10;}
+    ctx.fillStyle=color;ctx.font=font;
     ctx.textAlign='center';ctx.textBaseline='middle';
     ctx.fillText(label,lx,ly);
+    if(isN)ctx.shadowBlur=0;
   });
+  ctx.restore();
 
-  // Nearby points on compass ring (within 500m)
+  // ── Nearby sample dots on outer bezel ─────────────────────────
   if(S.lat!=null){
     R2.forEach(pt=>{
       const d=hav(S.lat,S.lon,pt.lat,pt.lon);
       if(d>500)return;
+      if(S.sel&&S.sel.id===pt.id)return; // already drawn by arrow
       const b=brg(S.lat,S.lon,pt.lat,pt.lon);
       const a=(b-hdg)*Math.PI/180-Math.PI/2;
-      const isSel=S.sel&&S.sel.id===pt.id;
-      const isVis=!!VISITED[pt.id];
+      const complete=isPointComplete(pt),partial=isPointPartial(pt);
       let c=pt.t==='proposed'?'#818cf8':'#fbbf24';
-      if(isVis)c='#10b981';
-      if(isSel)c='#3b82f6';
-      const dotR=isSel?6:4;
-      const px=cx+R*Math.cos(a),py=cy+R*Math.sin(a);
-      ctx.beginPath();ctx.arc(px,py,dotR,0,Math.PI*2);
+      if(partial)c='#f59e0b';if(complete)c='#10b981';
+      const px=cx+(R+6)*Math.cos(a),py=cy+(R+6)*Math.sin(a);
+      ctx.save();ctx.globalAlpha=0.85*fade;
+      ctx.shadowColor=c;ctx.shadowBlur=5;
+      ctx.beginPath();ctx.arc(px,py,4,0,Math.PI*2);
       ctx.fillStyle=c;ctx.fill();
-      if(isSel){
-        ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.stroke();
-        // Line from center to point
-        ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(px,py);
-        ctx.strokeStyle='rgba(59,130,246,0.5)';ctx.lineWidth=1.5;
-        ctx.setLineDash([6,6]);ctx.stroke();ctx.setLineDash([]);
-      }
+      ctx.restore();
     });
   }
 
-  // Center crosshair — "you are here"
-  ctx.beginPath();ctx.arc(cx,cy,8,0,Math.PI*2);
+  // ── Ring border ───────────────────────────────────────────────
+  ctx.save();ctx.globalAlpha=0.6*fade;
+  ctx.beginPath();ctx.arc(cx,cy,R,0,Math.PI*2);
+  ctx.strokeStyle='rgba(70,100,160,0.7)';ctx.lineWidth=1.5;ctx.stroke();
+  ctx.restore();
+
+  // ── Center "you are here" ─────────────────────────────────────
+  ctx.save();ctx.globalAlpha=fade;
+  // Outer glow ring
+  ctx.beginPath();ctx.arc(cx,cy,18,0,Math.PI*2);
+  ctx.strokeStyle='rgba(66,133,244,0.22)';ctx.lineWidth=10;ctx.stroke();
+  ctx.beginPath();ctx.arc(cx,cy,18,0,Math.PI*2);
+  ctx.strokeStyle='rgba(66,133,244,0.15)';ctx.lineWidth=18;ctx.stroke();
+  // Dot
+  ctx.beginPath();ctx.arc(cx,cy,7,0,Math.PI*2);
+  ctx.shadowColor='#4285f4';ctx.shadowBlur=12;
   ctx.fillStyle='#4285f4';ctx.fill();
-  ctx.strokeStyle='#fff';ctx.lineWidth=2.5;ctx.stroke();
+  ctx.shadowBlur=0;
+  ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.stroke();
+  // Crosshair
   [0,90,180,270].forEach(d=>{
     const a=d*Math.PI/180;
-    ctx.beginPath();ctx.moveTo(cx+12*Math.cos(a),cy+12*Math.sin(a));
-    ctx.lineTo(cx+20*Math.cos(a),cy+20*Math.sin(a));
-    ctx.strokeStyle='rgba(255,255,255,0.5)';ctx.lineWidth=1;ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(cx+16*Math.cos(a),cy+16*Math.sin(a));
+    ctx.lineTo(cx+26*Math.cos(a),cy+26*Math.sin(a));
+    ctx.strokeStyle='rgba(255,255,255,0.35)';ctx.lineWidth=1;ctx.stroke();
   });
+  ctx.restore();
 
-  // Heading readout
-  ctx.fillStyle='#fff';ctx.font='bold 32px -apple-system';
-  ctx.textAlign='center';ctx.textBaseline='top';
-  ctx.fillText(card(hdg)+' '+Math.round(hdg)+'°',cx,cy+R+40);
+  // ── Heading readout ───────────────────────────────────────────
+  ctx.save();ctx.globalAlpha=fade;ctx.textAlign='center';
+  // Heading badge bg
+  const hdgBx=cx,hdgBy=cy+R+36;
+  ctx.shadowColor='rgba(0,0,0,0.6)';ctx.shadowBlur=8;
+  const hdgG=ctx.createLinearGradient(hdgBx-55,hdgBy-18,hdgBx+55,hdgBy+18);
+  hdgG.addColorStop(0,'rgba(20,35,80,0.9)');
+  hdgG.addColorStop(1,'rgba(10,20,55,0.9)');
+  ctx.fillStyle=hdgG;
+  roundRect(ctx,hdgBx-60,hdgBy-22,120,44,12);ctx.fill();
+  ctx.shadowBlur=0;
+  ctx.strokeStyle='rgba(70,110,180,0.5)';ctx.lineWidth=1;
+  roundRect(ctx,hdgBx-60,hdgBy-22,120,44,12);ctx.stroke();
+  // Text
+  ctx.fillStyle='#fff';ctx.font='bold 28px -apple-system';
+  ctx.textBaseline='middle';ctx.fillText(card(hdg),hdgBx-18,hdgBy);
+  ctx.fillStyle='rgba(180,200,240,0.75)';ctx.font='bold 16px -apple-system';
+  ctx.fillText(Math.round(hdg)+'°',hdgBx+30,hdgBy);
+  ctx.restore();
 
-  // Target info
+  // ── Target direction guidance ──────────────────────────────────
   if(S.sel&&S.lat!=null){
-    const d=hav(S.lat,S.lon,S.sel.lat,S.sel.lon);
-    const b=brg(S.lat,S.lon,S.sel.lat,S.sel.lon);
-    const rel=relBrg(b,hdg);
-    const dirText=rel<-5?'← Turn left':rel>5?'Turn right →':'Straight ahead';
-    ctx.fillStyle='rgba(255,255,255,0.6)';ctx.font='13px -apple-system';
-    ctx.fillText(`${S.sel.id} · ${fmtD(d)} · ${dirText}`,cx,cy+R+80);
+    const tb=brg(S.lat,S.lon,S.sel.lat,S.sel.lon);
+    const rel=relBrg(tb,hdg);
+    const absRel=Math.abs(rel);
+    const dirText=absRel<4?'▲ Straight ahead':rel<0?`◀ ${Math.abs(Math.round(rel))}° left`:`${Math.round(rel)}° right ▶`;
+    ctx.save();ctx.globalAlpha=fade;ctx.textAlign='center';
+    ctx.fillStyle='rgba(100,180,255,0.9)';ctx.font='bold 14px -apple-system';
+    ctx.textBaseline='top';ctx.fillText(dirText,cx,cy+R+90);
+    ctx.restore();
   }
 
-  // Tilt hint
-  ctx.fillStyle='rgba(71,85,105,0.8)';ctx.font='13px -apple-system';
+  // ── Tilt hint ─────────────────────────────────────────────────
+  ctx.save();ctx.globalAlpha=0.45*fade;
+  ctx.fillStyle='#94a3b8';ctx.font='12px -apple-system';
   ctx.textAlign='center';ctx.textBaseline='bottom';
-  ctx.fillText('↑ Raise phone for AR camera view',cx,H-20);
+  ctx.fillText('↑ Raise phone to reveal camera',cx,H-20);
+  ctx.restore();
 }
 
 // ---- AR CAMERA MODE (phone tilted) ---------------------------
@@ -2715,25 +2873,44 @@ function renderAR(){
 
   const beta=S.beta!=null?S.beta:90;
   const mode=getTiltMode();
+  const vid=document.getElementById('ar-video');
 
   if(mode==='compass'){
-    // Hide camera, show compass
-    document.getElementById('ar-video').style.opacity='0';
+    vid.style.opacity='0';
+    canvas.style.transform='';canvas.style.filter='';canvas.style.opacity='1';
     document.getElementById('ar-nav-card').style.display=S.sel?'flex':'none';
     document.getElementById('ar-no-target').style.display=S.sel?'none':'block';
-    renderCompass(ctx,W,H);
+    renderCompass(ctx,W,H,1);
+
   } else if(mode==='ar'){
-    // Show camera + AR overlay
-    document.getElementById('ar-video').style.opacity='1';
+    vid.style.opacity='1';
+    canvas.style.transform='';canvas.style.filter='';canvas.style.opacity='1';
     document.getElementById('ar-nav-card').style.display=S.sel?'flex':'none';
     document.getElementById('ar-no-target').style.display=S.sel?'none':'block';
     renderARCamera(ctx,W,H,1);
+
   } else {
-    // Transition: crossfade between modes
+    // Transition t: 0=compass, 1=AR
     const t=Math.max(0,(beta-FLAT_THRESH)/(AR_THRESH-FLAT_THRESH));
-    document.getElementById('ar-video').style.opacity=String(t);
-    if(t<0.5)renderCompass(ctx,W,H);
-    renderARCamera(ctx,W,H,t);
+    vid.style.opacity=String(t.toFixed(3));
+    canvas.style.transform='';canvas.style.filter='';canvas.style.opacity='1';
+    document.getElementById('ar-nav-card').style.display=S.sel?'flex':'none';
+    document.getElementById('ar-no-target').style.display=S.sel?'none':'block';
+
+    const compAlpha=Math.max(0,1-t*1.2);
+    if(compAlpha>0.01){
+      // Compass folds upward — canvas 2D transform to simulate tilt-away
+      ctx.save();
+      const scaleY=1-t*0.22;
+      const slideUp=-t*H*0.14;
+      ctx.translate(W/2,H/2+slideUp);
+      ctx.scale(1,scaleY);
+      ctx.translate(-W/2,-H/2);
+      renderCompass(ctx,W,H,compAlpha); // fade param handles all opacity inside
+      ctx.restore();
+    }
+    // AR labels fade in
+    if(t>0.1)renderARCamera(ctx,W,H,t);
   }
 }
 
@@ -2756,68 +2933,120 @@ function drawEdgeArrow(ctx,W,H,side,dist,bearing,hdg){
 }
 
 function drawCompassTape(ctx,W){
-  const y=0;
-  const H_tape=54,deg_px=W/90; // 90 degrees visible
+  const H_tape=68,deg_px=W/90;
   const hdg=S.hdg!=null?S.hdg:0;
+  const now=Date.now();
+  const pulse=0.5+0.5*Math.sin(now/700);
 
-  // Background glass
-  ctx.fillStyle='rgba(15,23,42,0.82)';
-  roundRect(ctx,0,0,W,H_tape,0);
-  ctx.fill();
+  // ── Tape background: glassmorphism gradient ───────────────────
+  const tapeG=ctx.createLinearGradient(0,0,0,H_tape);
+  tapeG.addColorStop(0,'rgba(10,18,40,0.94)');
+  tapeG.addColorStop(0.6,'rgba(8,14,32,0.90)');
+  tapeG.addColorStop(1,'rgba(6,10,24,0.82)');
+  ctx.fillStyle=tapeG;ctx.fillRect(0,0,W,H_tape);
 
-  // Separator line
-  ctx.strokeStyle='rgba(71,85,105,0.5)';ctx.lineWidth=1;
+  // Bottom separator glow line
+  const lineG=ctx.createLinearGradient(0,0,W,0);
+  lineG.addColorStop(0,'rgba(59,130,246,0)');
+  lineG.addColorStop(0.2,'rgba(59,130,246,0.4)');
+  lineG.addColorStop(0.5,'rgba(99,160,255,0.7)');
+  lineG.addColorStop(0.8,'rgba(59,130,246,0.4)');
+  lineG.addColorStop(1,'rgba(59,130,246,0)');
+  ctx.strokeStyle=lineG;ctx.lineWidth=1;
   ctx.beginPath();ctx.moveTo(0,H_tape);ctx.lineTo(W,H_tape);ctx.stroke();
 
+  // ── Clip region for ticks ─────────────────────────────────────
   ctx.save();ctx.clip(new Path2D(`M 0 0 L ${W} 0 L ${W} ${H_tape} L 0 ${H_tape} Z`));
 
   for(let off=-60;off<=150;off+=2){
     const deg=((Math.round(hdg)+off)%360+360)%360;
     const x=W/2+off*deg_px;
     if(x<-20||x>W+20)continue;
-
     const isMaj=deg%10===0;
     const isCard=deg%90===0;
     const is45=deg%45===0&&!isCard;
     if(!isMaj&&!isCard)continue;
-
-    const tickH=isCard?26:is45?18:12;
-    ctx.strokeStyle=isCard?'rgba(255,255,255,0.95)':isMaj?'rgba(255,255,255,0.45)':'rgba(255,255,255,0.2)';
-    ctx.lineWidth=isCard?2:1;
+    const tickH=isCard?30:is45?22:14;
+    const tickColor=isCard?'rgba(255,255,255,0.95)':is45?'rgba(255,255,255,0.5)':'rgba(255,255,255,0.22)';
+    ctx.strokeStyle=tickColor;ctx.lineWidth=isCard?2:1;
     ctx.beginPath();ctx.moveTo(x,H_tape-tickH);ctx.lineTo(x,H_tape-2);ctx.stroke();
-
     if(isMaj){
       const label=isCard?['N','E','S','W'][deg/90]:String(deg);
-      ctx.fillStyle=isCard?'#fff':is45?'rgba(255,255,255,0.7)':'rgba(255,255,255,0.45)';
-      ctx.font=isCard?`bold 13px -apple-system`:`10px -apple-system`;
+      const isNorth=isCard&&deg===0;
+      if(isNorth){ctx.shadowColor='#ff4d4d';ctx.shadowBlur=6;}
+      ctx.fillStyle=isCard?(isNorth?'#ff6666':'rgba(255,255,255,0.95)'):is45?'rgba(255,255,255,0.65)':'rgba(255,255,255,0.4)';
+      ctx.font=isCard?`bold 14px -apple-system`:`10px -apple-system`;
       ctx.textAlign='center';ctx.textBaseline='bottom';
-      ctx.fillText(label,x,H_tape-tickH-4);
+      ctx.fillText(label,x,H_tape-tickH-5);
+      if(isNorth)ctx.shadowBlur=0;
     }
   }
   ctx.restore();
 
-  // Target bearing marker
+  // ── Target bearing indicator on tape ─────────────────────────
   if(S.sel&&S.lat!=null){
     const b=brg(S.lat,S.lon,S.sel.lat,S.sel.lon);
+    const dist=hav(S.lat,S.lon,S.sel.lat,S.sel.lon);
     const rel=relBrg(b,hdg);
     if(Math.abs(rel)<50){
       const tx=W/2+rel*deg_px;
-      ctx.fillStyle='#818cf8';
-      ctx.beginPath();ctx.moveTo(tx-7,H_tape);ctx.lineTo(tx+7,H_tape);ctx.lineTo(tx,H_tape-12);ctx.closePath();ctx.fill();
-      // Glow
-      ctx.fillStyle='rgba(129,140,248,0.3)';
-      ctx.beginPath();ctx.arc(tx,H_tape-6,10,0,Math.PI*2);ctx.fill();
+      const complete=isPointComplete(S.sel),partial=isPointPartial(S.sel);
+      const tClr=complete?'#10b981':partial?'#f59e0b':'#818cf8';
+
+      // Glow column from tape down into screen
+      const colG=ctx.createLinearGradient(0,H_tape,0,H_tape+40);
+      colG.addColorStop(0,tClr.replace('#','rgba(').replace(/^rgba\(/,'rgba(')+'80');
+      colG.addColorStop(1,'rgba(0,0,0,0)');
+      // Actually just a simple glow
+      ctx.save();
+      ctx.shadowColor=tClr;ctx.shadowBlur=12+pulse*6;
+      // Diamond marker
+      ctx.fillStyle=tClr;
+      ctx.beginPath();
+      ctx.moveTo(tx,H_tape-2);ctx.lineTo(tx+8,H_tape-11);
+      ctx.lineTo(tx,H_tape-20);ctx.lineTo(tx-8,H_tape-11);
+      ctx.closePath();ctx.fill();
+      // Short ID label above diamond
+      const shortId=S.sel.id.replace('ABP-R2-','');
+      ctx.shadowBlur=0;
+      ctx.fillStyle='rgba(255,255,255,0.95)';ctx.font='bold 10px -apple-system';
+      ctx.textAlign='center';ctx.textBaseline='bottom';
+      ctx.fillText(shortId,tx,H_tape-22);
+      ctx.restore();
+    } else {
+      // Off-screen indicator: glowing arrows at tape edge
+      const side=rel<0?'left':'right';
+      const ex=side==='left'?24:W-24;
+      ctx.save();ctx.globalAlpha=0.7+0.3*pulse;
+      ctx.fillStyle='#818cf8';ctx.shadowColor='#818cf8';ctx.shadowBlur=8;
+      ctx.font='bold 16px -apple-system';ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillText(side==='left'?'◀':'▶',ex,H_tape/2);
+      ctx.restore();
     }
   }
 
-  // Center triangle (current heading)
+  // ── Center heading pointer ────────────────────────────────────
+  ctx.save();
+  ctx.shadowColor='#3b82f6';ctx.shadowBlur=10;
   ctx.fillStyle='#3b82f6';
-  ctx.beginPath();ctx.moveTo(W/2-9,0);ctx.lineTo(W/2+9,0);ctx.lineTo(W/2,12);ctx.closePath();ctx.fill();
+  ctx.beginPath();ctx.moveTo(W/2-10,0);ctx.lineTo(W/2+10,0);ctx.lineTo(W/2,16);ctx.closePath();ctx.fill();
+  ctx.restore();
 
-  // Current heading text
-  ctx.fillStyle='#fff';ctx.font='bold 14px -apple-system';ctx.textAlign='center';ctx.textBaseline='top';
-  const cardLabel=card(hdg)+' '+Math.round(hdg)+'°';
-  ctx.fillText(cardLabel,W/2,H_tape+8);
+  // ── Heading pill ──────────────────────────────────────────────
+  ctx.save();
+  const hdgPillG=ctx.createLinearGradient(W/2-38,H_tape+8,W/2+38,H_tape+28);
+  hdgPillG.addColorStop(0,'rgba(20,40,90,0.92)');
+  hdgPillG.addColorStop(1,'rgba(10,25,65,0.92)');
+  ctx.shadowColor='rgba(0,0,0,0.5)';ctx.shadowBlur=6;
+  ctx.fillStyle=hdgPillG;
+  roundRect(ctx,W/2-42,H_tape+6,84,26,8);ctx.fill();
+  ctx.shadowBlur=0;
+  ctx.strokeStyle='rgba(59,130,246,0.45)';ctx.lineWidth=1;
+  roundRect(ctx,W/2-42,H_tape+6,84,26,8);ctx.stroke();
+  ctx.fillStyle='#fff';ctx.font='bold 13px -apple-system';
+  ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText(card(hdg)+' '+Math.round(hdg)+'°',W/2,H_tape+19);
+  ctx.restore();
 }
 
 function drawARLabel(ctx,x,y,dist,pt,alpha,isSel,isVis){
