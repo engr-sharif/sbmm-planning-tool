@@ -140,11 +140,12 @@ body{
   position:absolute;right:14px;bottom:calc(var(--tab-h) + var(--ib) + 124px);z-index:600;
   background:rgba(15,23,42,0.97);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
   border-radius:16px;border:1px solid var(--border);
-  padding:16px 20px;display:none;min-width:210px;
+  padding:16px 20px;min-width:210px;
   box-shadow:0 12px 40px rgba(0,0,0,0.6);transform:translateX(60px);
   transition:transform .2s,opacity .2s;opacity:0;pointer-events:none;
+  visibility:hidden;
 }
-.layer-panel.open{display:block;transform:translateX(0);opacity:1;pointer-events:auto}
+.layer-panel.open{visibility:visible;transform:translateX(0);opacity:1;pointer-events:auto}
 .layer-panel h4{font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3);margin-bottom:10px}
 .lyr-row{display:flex;align-items:center;gap:10px;padding:9px 0;font-size:14px;font-weight:500;border-bottom:1px solid rgba(71,85,105,0.2)}
 .lyr-row:last-child{border:none}
@@ -171,9 +172,9 @@ body{
   padding:18px 20px;
   box-shadow:0 -4px 40px rgba(0,0,0,0.5);
   transform:translateY(150%);transition:transform .35s cubic-bezier(0.4,0,0.2,1);
-  display:none;
+  visibility:hidden;pointer-events:none;
 }
-.pt-card.show{display:block;transform:translateY(0)}
+.pt-card.show{visibility:visible;pointer-events:auto;transform:translateY(0)}
 .pt-card-top{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:12px}
 .pt-card-id{font-size:20px;font-weight:800;letter-spacing:-0.5px}
 .pt-card-type{font-size:12px;color:var(--text2);margin-top:2px;font-weight:500}
@@ -934,7 +935,7 @@ body{
   <div class="set-footer">
     SBMM ABP Field Navigator v3.0<br>
     50 R2 Sampling Points · Sulphur Bank Mercury Mine<br>
-    Built for field use · Works offline
+    Built for field use · Map tiles require network
   </div>
 </div>
 
@@ -995,6 +996,19 @@ body{
     <div class="gps-modal-btns">
       <button class="gps-btn-wait" id="gps-btn-wait">⏳ Wait</button>
       <button class="gps-btn-ok" id="gps-btn-ok">→ Continue</button>
+    </div>
+  </div>
+</div>
+
+<!-- Interval Choice Modal -->
+<div class="gps-modal-overlay" id="interval-choice-overlay">
+  <div class="gps-modal-card">
+    <div class="gps-modal-icon">📋</div>
+    <div class="gps-modal-title" id="interval-choice-title">Edit Interval</div>
+    <div class="gps-modal-msg" id="interval-choice-msg">Which interval would you like to edit?</div>
+    <div class="gps-modal-btns">
+      <button class="gps-btn-wait" id="interval-btn-1">0–6 in</button>
+      <button class="gps-btn-ok" id="interval-btn-2">6–12 in</button>
     </div>
   </div>
 </div>
@@ -1298,14 +1312,27 @@ const GPS_LOCK_FT=3.0; // ft — target accuracy threshold for sample logging
 
 const PREFS_DEF={unit:'ft',autoCenter:true,vibrate:true,autoNav:false};
 
-let PREFS=Object.assign({},PREFS_DEF,JSON.parse(localStorage.getItem(PREFS_KEY)||'{}'));
-let VISITED=JSON.parse(localStorage.getItem(VIS_KEY)||'{}');
-let VISIT_LOG=JSON.parse(localStorage.getItem(LOG_KEY)||'[]');
-let PHOTOS=JSON.parse(localStorage.getItem(PHOTO_KEY)||'{}');
-let BORING_LOGS=JSON.parse(localStorage.getItem(BORING_KEY)||'{}');
+function safeParse(key,fallback){
+  try{const v=localStorage.getItem(key);return v?JSON.parse(v):fallback;}
+  catch(e){console.warn('Corrupted localStorage key:',key,e);return fallback;}
+}
+
+let PREFS=Object.assign({},PREFS_DEF,safeParse(PREFS_KEY,{}));
+let VISITED=safeParse(VIS_KEY,{});
+let VISIT_LOG=safeParse(LOG_KEY,[]);
+let PHOTOS=safeParse(PHOTO_KEY,{});
+// Clean up photos with stale blob URLs (blob: URLs don't survive page refresh)
+Object.keys(PHOTOS).forEach(id=>{
+  PHOTOS[id]=PHOTOS[id].filter(p=>p.url||p.localUrl);
+  PHOTOS[id].forEach(p=>{
+    if(p.localUrl&&p.localUrl.startsWith('blob:')){p.localUrl='';}
+  });
+  if(!PHOTOS[id].length)delete PHOTOS[id];
+});
+let BORING_LOGS=safeParse(BORING_KEY,{});
 // Migrate from v1 (single object per point → array)
 if(!localStorage.getItem(BORING_KEY)){
-  const old=JSON.parse(localStorage.getItem('sbmm_boring_v1')||'{}');
+  const old=safeParse('sbmm_boring_v1',{});
   Object.entries(old).forEach(([id,log])=>{if(log&&typeof log==='object'&&!Array.isArray(log))BORING_LOGS[id]=[{...log,interval:1}];});
   if(Object.keys(BORING_LOGS).length)localStorage.setItem(BORING_KEY,JSON.stringify(BORING_LOGS));
 }
@@ -1341,6 +1368,11 @@ class KalmanGPS{
   }
 }
 const kalman=new KalmanGPS();
+
+// ================================================================
+// THROTTLE UTILITY
+// ================================================================
+function throttle(fn,ms){let last=0,timer=null;return function(...args){const now=Date.now();const remaining=ms-(now-last);if(remaining<=0){clearTimeout(timer);timer=null;last=now;fn.apply(this,args);}else if(!timer){timer=setTimeout(()=>{last=Date.now();timer=null;fn.apply(this,args);},remaining);}}}
 
 // ================================================================
 // MATH UTILS
@@ -1379,8 +1411,8 @@ function savePhotos(){localStorage.setItem(PHOTO_KEY,JSON.stringify(PHOTOS))}
 // MAP SETUP
 // ================================================================
 const map=L.map('map',{zoomControl:false,attributionControl:false}).setView([39.0065,-122.6675],17);
-const esriSat=L.tileLayer('https://mt{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',{maxZoom:21,subdomains:['0','1','2','3'],attribution:''}).addTo(map);
-const esriRef=L.tileLayer('https://mt{s}.google.com/vt/lyrs=h&x={x}&y={y}&z={z}',{maxZoom:21,subdomains:['0','1','2','3'],opacity:0.8,attribution:''}).addTo(map);
+const esriSat=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:21,attribution:'Esri'}).addTo(map);
+const esriRef=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}',{maxZoom:21,opacity:0.8,attribution:''}).addTo(map);
 
 const LAYERS={
   prop:L.layerGroup().addTo(map),
@@ -1496,15 +1528,15 @@ function updateGPSMarker(){
     icon:L.divIcon({className:'',html,iconSize:[22,22],iconAnchor:[11,11]}),
     zIndexOffset:2000
   }).addTo(map);
-  // Accuracy circle via CSS (rough)
+  // Accuracy circle
+  if(window._accCircle)window._accCircle.remove();
   if(accM>5&&map.getZoom()>=15){
-    const r=Math.max(8,map.getPixelBounds().getSize().x/(2*111320*Math.cos(S.lat*RAD))*accM*map.getZoom());
-    // We'll just use Leaflet circle instead
-    if(window._accCircle)window._accCircle.remove();
     window._accCircle=L.circle([S.lat,S.lon],{
       radius:accM,fillColor:'#4285f4',fillOpacity:0.08,
       stroke:true,color:'#4285f4',weight:1,opacity:0.3
     }).addTo(map);
+  }else{
+    window._accCircle=null;
   }
 }
 
@@ -1522,7 +1554,7 @@ function startGPS(){
     if(PREFS.autoCenter)map.setView([S.lat,S.lon],map.getZoom());
     drawNavLine();
     updateCardStats();
-    renderList();
+    renderListThrottled();
     checkArrival();
     if(PREFS.autoNav&&!S.sel)autoSelectNearest();
   },err=>{
@@ -1554,7 +1586,8 @@ function setGPSBad(msg){
 // COMPASS SENSOR
 // ================================================================
 let hdgEMA=null; // exponential moving average
-const EMA_ALPHA=0.15;
+const EMA_ALPHA=0.25;
+let _hasAbsoluteOrientation=false; // track whether we got a reliable absolute event
 
 function smoothHeading(raw){
   if(hdgEMA===null){hdgEMA=raw;return raw}
@@ -1568,13 +1601,26 @@ function smoothHeading(raw){
 }
 
 let compassStaleTimer=null;
-function onOrientation(e){
+function onAbsoluteOrientation(e){
+  // Absolute orientation events provide true north heading on Android
+  if(e.alpha==null)return;
+  _hasAbsoluteOrientation=true;
+  handleOrientationEvent(e,true);
+}
+function onRelativeOrientation(e){
+  // Skip if we already have absolute orientation data (prefer absolute)
+  if(_hasAbsoluteOrientation)return;
+  handleOrientationEvent(e,false);
+}
+function handleOrientationEvent(e,isAbsolute){
   let raw=null;
   if(e.webkitCompassHeading!=null&&!isNaN(e.webkitCompassHeading)){
-    raw=e.webkitCompassHeading; // iOS, already true north, clockwise
-  } else if(e.absolute&&e.alpha!=null){
-    raw=(360-e.alpha+360)%360;
+    raw=e.webkitCompassHeading; // iOS: true north, clockwise
+  } else if(e.alpha!=null&&(isAbsolute||e.absolute)){
+    raw=(360-e.alpha+360)%360; // Android absolute: convert to compass heading
   } else if(e.alpha!=null){
+    // Non-absolute fallback: heading may be relative to initial device orientation
+    // Still usable for relative direction but not true north
     raw=(360-e.alpha+360)%360;
   }
   if(raw==null)return;
@@ -1598,19 +1644,21 @@ function onOrientation(e){
 }
 
 async function startCompass(){
-  const handler=onOrientation.bind(this);
+  const absHandler=onAbsoluteOrientation;
+  const relHandler=onRelativeOrientation;
   if(typeof DeviceOrientationEvent!=='undefined'&&
      typeof DeviceOrientationEvent.requestPermission==='function'){
     try{
       const r=await DeviceOrientationEvent.requestPermission();
       if(r==='granted'){
-        window.addEventListener('deviceorientationabsolute',handler,true);
-        window.addEventListener('deviceorientation',handler,true);
+        window.addEventListener('deviceorientationabsolute',absHandler,true);
+        window.addEventListener('deviceorientation',relHandler,true);
       }
     }catch(e){console.warn('Compass permission denied',e)}
   }else{
-    window.addEventListener('deviceorientationabsolute',handler,true);
-    window.addEventListener('deviceorientation',handler,true);
+    // Prefer absolute orientation (true north) on Android; fall back to relative
+    window.addEventListener('deviceorientationabsolute',absHandler,true);
+    window.addEventListener('deviceorientation',relHandler,true);
   }
 }
 
@@ -1744,6 +1792,7 @@ function autoSelectNearest(){
 // ================================================================
 let _boringPt=null;
 let _boringInterval=1; // which depth interval (1 or 2) is currently open
+let _boringIsEdit=false; // whether we're editing an existing log
 let _uscsState={};
 let _uscsResult=null;
 let _pidNA=false;
@@ -2061,7 +2110,8 @@ function openBoringLog(pt,interval=null,existingLog=null){
   // Determine interval to log
   const req=requiredIntervals(pt);
   _boringInterval=interval||(existingLog?existingLog.interval:nextIntervalNum(pt));
-  const isEdit=!!existingLog;
+  _boringIsEdit=!!existingLog;
+  const isEdit=_boringIsEdit;
   resetBoringForm();
   document.getElementById('boring-pt-id').textContent=pt.id;
   // Timestamp
@@ -2217,12 +2267,18 @@ function checkGPSAndOpenLog(pt,fromArrival=false,forceInterval=null){
       // Shallow — open interval 1 for editing
       openBoringLog(pt,1,getIntervalLog(pt,1));
     }else{
-      // Both — ask which interval to edit
-      if(confirm(`${pt.id} has both intervals logged.\n[OK] Edit Interval 1 (0–6 in)\n[Cancel] Edit Interval 2 (6–12 in)`)){
+      // Both — show interval choice modal
+      document.getElementById('interval-choice-title').textContent=`Edit ${pt.id}`;
+      document.getElementById('interval-choice-msg').textContent='Both intervals are logged. Which would you like to edit?';
+      document.getElementById('interval-choice-overlay').classList.add('show');
+      document.getElementById('interval-btn-1').onclick=()=>{
+        document.getElementById('interval-choice-overlay').classList.remove('show');
         openBoringLog(pt,1,getIntervalLog(pt,1));
-      }else{
+      };
+      document.getElementById('interval-btn-2').onclick=()=>{
+        document.getElementById('interval-choice-overlay').classList.remove('show');
         openBoringLog(pt,2,getIntervalLog(pt,2));
-      }
+      };
     }
     return;
   }
@@ -2400,7 +2456,7 @@ function initBoringLogEvents(){
   document.getElementById('bl-save-btn').addEventListener('click',()=>{
     if(!_boringPt)return;
     const vals=collectFormValues();
-    const isEdit=!!document.getElementById('boring-edit-badge').style.display.includes('inline');
+    const isEdit=_boringIsEdit;
     const now=new Date().toISOString();
     const logs=getPointLogs(_boringPt).filter(l=>l.interval!==_boringInterval); // remove existing entry for this interval
     const log={
@@ -2467,6 +2523,7 @@ function hideArrival(){document.getElementById('arrival-flash').classList.remove
 // AR MODE
 // ================================================================
 async function startAR(){
+  clearTimeout(_arStopTimer); // cancel pending stream shutdown
   document.getElementById('ar-nav-card').style.display=S.sel?'flex':'none';
   document.getElementById('ar-no-target').style.display=S.sel?'none':'block';
 
@@ -2492,10 +2549,20 @@ async function startAR(){
   arLoop();
 }
 
+let _arStopTimer=null;
 function stopAR(){
   S.arActive=false;
   if(S.arRaf)cancelAnimationFrame(S.arRaf);
-  // Keep stream alive for quick re-entry, don't stop tracks
+  // Stop camera stream after 30s to save battery, but allow quick re-entry
+  clearTimeout(_arStopTimer);
+  _arStopTimer=setTimeout(()=>{
+    if(!S.arActive&&S.arStream){
+      S.arStream.getTracks().forEach(t=>t.stop());
+      S.arStream=null;
+      const vid=document.getElementById('ar-video');
+      vid.srcObject=null;vid.style.opacity='0';
+    }
+  },30000);
 }
 
 function arLoop(){
@@ -3202,29 +3269,66 @@ function renderList(){
     const pc=PHOTOS[pt.id]?PHOTOS[pt.id].length:0;
     const logs=getPointLogs(pt);
     const req=requiredIntervals(pt);
-    const depthBadge=req===2?` <span style="font-size:11px;color:${vis?'#10b981':partial?'#f59e0b':'#94a3b8'}">${logs.length}/${req}</span>`:'';
     const checkLabel=vis?'✓':partial?`${logs.length}/${req}`:'';
 
     const row=document.createElement('div');
     row.className='pt-row'+(isSel?' selected':'');
     row.dataset.id=pt.id;
-    row.innerHTML=`
-      <div class="pt-row-dot" style="background:${dotColor}"></div>
-      <div class="pt-row-body">
-        <div class="pt-row-id">${pt.id}${depthBadge}${pc>0?` <span style="font-size:11px;color:#3b82f6">📷${pc}</span>`:''}</div>
-        <div class="pt-row-meta">${pt.t} · ${pt.d} · ${pt.a==='W'?'West':'East'}</div>
-      </div>
-      <div class="pt-row-right">
-        ${d!=null?`<div class="pt-row-dist ${dCls(d)}">${fmtD(d)}</div><div class="pt-row-dir">${card(b)} ${Math.round(b)}°</div>`:''}
-      </div>
-      <div class="pt-check-btn${vis?' done':partial?' partial':''}" data-pid="${pt.id}">${checkLabel}</div>
-    `;
+
+    // Dot
+    const dot=document.createElement('div');
+    dot.className='pt-row-dot';dot.style.background=dotColor;
+
+    // Body
+    const body=document.createElement('div');
+    body.className='pt-row-body';
+    const idDiv=document.createElement('div');
+    idDiv.className='pt-row-id';
+    idDiv.textContent=pt.id;
+    if(req===2){
+      const badge=document.createElement('span');
+      badge.style.cssText=`font-size:11px;color:${vis?'#10b981':partial?'#f59e0b':'#94a3b8'}`;
+      badge.textContent=` ${logs.length}/${req}`;
+      idDiv.appendChild(badge);
+    }
+    if(pc>0){
+      const photoBadge=document.createElement('span');
+      photoBadge.style.cssText='font-size:11px;color:#3b82f6';
+      photoBadge.textContent=` 📷${pc}`;
+      idDiv.appendChild(photoBadge);
+    }
+    const meta=document.createElement('div');
+    meta.className='pt-row-meta';
+    meta.textContent=`${pt.t} · ${pt.d} · ${pt.a==='W'?'West':'East'}`;
+    body.appendChild(idDiv);body.appendChild(meta);
+
+    // Right side (distance/direction)
+    const right=document.createElement('div');
+    right.className='pt-row-right';
+    if(d!=null){
+      const distDiv=document.createElement('div');
+      distDiv.className='pt-row-dist '+dCls(d);
+      distDiv.textContent=fmtD(d);
+      const dirDiv=document.createElement('div');
+      dirDiv.className='pt-row-dir';
+      dirDiv.textContent=`${card(b)} ${Math.round(b)}°`;
+      right.appendChild(distDiv);right.appendChild(dirDiv);
+    }
+
+    // Check button
+    const chk=document.createElement('div');
+    chk.className='pt-check-btn'+(vis?' done':partial?' partial':'');
+    chk.dataset.pid=pt.id;
+    chk.textContent=checkLabel;
+
+    row.appendChild(dot);row.appendChild(body);row.appendChild(right);row.appendChild(chk);
+
     row.addEventListener('click',e=>{
       if(e.target.closest('.pt-check-btn'))return;
       selectPoint(pt);
       setView('map');
     });
-    row.querySelector('.pt-check-btn').addEventListener('click',e=>{
+    chk.addEventListener('click',e=>{
       e.stopPropagation();selectPoint(pt);checkGPSAndOpenLog(pt);
     });
     frag.appendChild(row);
@@ -3233,6 +3337,7 @@ function renderList(){
   scroll.innerHTML='';scroll.appendChild(frag);
   document.getElementById('list-count').textContent=`${pts.length} points`;
 }
+const renderListThrottled=throttle(renderList,1000);
 
 // ================================================================
 // VIEW SWITCHING — inline styles only, no CSS class reliance
@@ -3290,16 +3395,35 @@ function openPhotos(pt){
 function renderPhotoGrid(pt){
   const photos=PHOTOS[pt.id]||[];
   const grid=document.getElementById('photo-grid');
+  grid.innerHTML='';
   if(!photos.length){
-    grid.innerHTML=`<div style="grid-column:1/-1;padding:40px;text-align:center;color:#64748b">No photos yet.<br>Tap + to add one.</div>`;
+    const empty=document.createElement('div');
+    empty.style.cssText='grid-column:1/-1;padding:40px;text-align:center;color:#64748b';
+    empty.textContent='No photos yet. Tap + to add one.';
+    grid.appendChild(empty);
     return;
   }
-  grid.innerHTML=photos.map((p,i)=>`
-    <div class="photo-grid-item">
-      <img src="${p.url||p.localUrl}" alt="${pt.id} photo ${i+1}" loading="lazy">
-      <div class="photo-grid-item-info">${new Date(p.time).toLocaleDateString()}</div>
-    </div>
-  `).join('');
+  photos.forEach((p,i)=>{
+    const item=document.createElement('div');
+    item.className='photo-grid-item';
+    const img=document.createElement('img');
+    img.src=p.url||p.localUrl||'';
+    img.alt=`${pt.id} photo ${i+1}`;
+    img.loading='lazy';
+    const info=document.createElement('div');
+    info.className='photo-grid-item-info';
+    info.textContent=p.time?new Date(p.time).toLocaleDateString():'';
+    item.appendChild(img);item.appendChild(info);
+    grid.appendChild(item);
+  });
+}
+
+function blobToDataURL(blob){
+  return new Promise(res=>{
+    const reader=new FileReader();
+    reader.onload=e=>res(e.target.result);
+    reader.readAsDataURL(blob);
+  });
 }
 
 function capturePhoto(pt){
@@ -3309,11 +3433,17 @@ function capturePhoto(pt){
     const file=e.target.files[0];if(!file)return;
     const compressed=await compressImage(file,1200,0.88);
     const overlaid=await overlayPhotoMetadata(compressed,pt,hdgAtCapture);
-    const localUrl=URL.createObjectURL(overlaid);
-    const meta={id:pt.id,time:new Date().toISOString(),lat:S.lat,lon:S.lon,hdg:hdgAtCapture,localUrl,uploaded:false};
+    // Store as data URI so it survives page refresh (blob URLs are session-scoped)
+    const dataUrl=await blobToDataURL(overlaid);
+    const meta={id:pt.id,time:new Date().toISOString(),lat:S.lat,lon:S.lon,hdg:hdgAtCapture,localUrl:dataUrl,uploaded:false};
     if(!PHOTOS[pt.id])PHOTOS[pt.id]=[];
     PHOTOS[pt.id].push(meta);
-    savePhotos();
+    try{savePhotos();}catch(e){
+      // localStorage quota exceeded — drop the data URI and warn
+      meta.localUrl='';
+      console.warn('localStorage quota exceeded, photo data not persisted locally');
+      try{savePhotos();}catch(e2){}
+    }
     renderPhotoGrid(pt);
     drawMapMarkers();updateCard();
     // Try GitHub upload
@@ -3464,25 +3594,25 @@ function initSettings(){
       const intervalsToWrite=logs.length?logs:[{interval:1,timestamp:VISITED[pt.id]||'',lat:null,lon:null}];
       intervalsToWrite.forEach(b=>{
         const row=[
-          pt.id,
+          esc(pt.id),
           req,
           b.interval||1,
-          b.timestamp||VISITED[pt.id]||'',
-          (b.lat||'').toString(),
-          (b.lon||'').toString(),
+          esc(b.timestamp||VISITED[pt.id]||''),
+          b.lat!=null?b.lat:'',
+          b.lon!=null?b.lon:'',
           b.accuracy_ft||'',
-          b.depth||'',
-          b.uscs||'',
-          b.uscs_desc||'',
-          b.munsell_notation||'',
-          b.munsell_name||'',
-          b.moisture||'',
-          b.density_consistency||'',
-          b.pid_ppm||'',
-          b.odor_level||'',
-          b.odor_type||'',
-          b.staining||'',
-          b.status||'Collected',
+          esc(b.depth||''),
+          esc(b.uscs||''),
+          esc(b.uscs_desc||''),
+          esc(b.munsell_notation||''),
+          esc(b.munsell_name||''),
+          esc(b.moisture||''),
+          esc(b.density_consistency||''),
+          esc(b.pid_ppm!=null?String(b.pid_ppm):''),
+          esc(b.odor_level||''),
+          esc(b.odor_type||''),
+          esc(b.staining||''),
+          esc(b.status||'Collected'),
           esc(b.soil_description),
           esc(b.notes),
         ];
