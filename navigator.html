@@ -2769,12 +2769,51 @@ function renderCompass(ctx,W,H,fade=1){
     ctx.restore();
   }
 
-  // ── Tilt hint ─────────────────────────────────────────────────
-  ctx.save();ctx.globalAlpha=0.45*fade;
-  ctx.fillStyle='#94a3b8';ctx.font='12px -apple-system';
-  ctx.textAlign='center';ctx.textBaseline='bottom';
-  ctx.fillText('↑ Raise phone to reveal camera',cx,H-20);
-  ctx.restore();
+  // ── Tilt hint — animated phone + floating arrows ─────────────
+  {
+    ctx.save();
+    const hx=cx, phoneY=H-54;
+
+    // Three cascading upward arrows floating away
+    [0,0.38,0.72].forEach(offset=>{
+      const phase=((now/1400)+offset)%1;
+      const ay=phoneY-30-phase*22;
+      const aAlpha=(1-phase)*0.7*fade;
+      if(aAlpha<0.04)return;
+      ctx.globalAlpha=aAlpha;
+      ctx.fillStyle='#60a5fa';
+      ctx.beginPath();
+      ctx.moveTo(hx,ay-7);ctx.lineTo(hx+5,ay);ctx.lineTo(hx-5,ay);
+      ctx.closePath();ctx.fill();
+    });
+
+    // Phone icon: gently rocks toward "tilted up" then back
+    const rock=Math.sin(now/2200)*0.28; // ±16° rocking
+    ctx.globalAlpha=(0.55+0.08*Math.sin(now/900))*fade;
+    ctx.save();
+    ctx.translate(hx,phoneY);ctx.rotate(rock);
+    const pw=13,ph=22,pr=2.5;
+    ctx.strokeStyle='#94a3b8';ctx.lineWidth=1.5;
+    // Rounded phone outline (4-corner arcTo)
+    ctx.beginPath();
+    ctx.moveTo(-pw/2+pr,-ph/2);
+    ctx.lineTo(pw/2-pr,-ph/2);ctx.arcTo(pw/2,-ph/2,pw/2,-ph/2+pr,pr);
+    ctx.lineTo(pw/2,ph/2-pr);ctx.arcTo(pw/2,ph/2,pw/2-pr,ph/2,pr);
+    ctx.lineTo(-pw/2+pr,ph/2);ctx.arcTo(-pw/2,ph/2,-pw/2,ph/2-pr,pr);
+    ctx.lineTo(-pw/2,-ph/2+pr);ctx.arcTo(-pw/2,-ph/2,-pw/2+pr,-ph/2,pr);
+    ctx.closePath();ctx.stroke();
+    // Camera notch at top
+    ctx.beginPath();ctx.arc(0,-ph/2+3.5,1.5,0,Math.PI*2);
+    ctx.fillStyle='#94a3b8';ctx.fill();
+    ctx.restore();
+
+    // "raise · reveal camera" label
+    ctx.globalAlpha=(0.4+0.1*Math.sin(now/1100))*fade;
+    ctx.fillStyle='#94a3b8';ctx.font='500 11px -apple-system';
+    ctx.textAlign='center';ctx.textBaseline='top';
+    ctx.fillText('raise · reveal camera',hx,phoneY+16);
+    ctx.restore();
+  }
 }
 
 // ---- AR CAMERA MODE (phone tilted) ---------------------------
